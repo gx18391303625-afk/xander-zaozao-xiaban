@@ -1,6 +1,6 @@
 # Workflow and release contract
 
-Use this contract when Stage 3 receives the standard output of product selection, competitor locking, and keyword-library work. It keeps one evidence chain from the original product candidate to the final Listing candidate. It is product-agnostic and marketplace-agnostic.
+Use this contract when Stage 3 receives the standard output of competitor locking and keyword-library work (product selection is frozen in this plugin; its IDs are optional — see xander-operations/references/lineage-and-selection.md). It keeps one evidence chain from the original product candidate to the final Listing candidate. It is product-agnostic and marketplace-agnostic.
 
 ## 1. Canonical input
 
@@ -25,7 +25,7 @@ listing_run_id
 listing_version_id
 ```
 
-If an upstream identifier is missing, record it as a gap. Do not invent a replacement that appears to preserve lineage. A changed product, offer scope, marketplace, or variation requires a new `listing_run_id`; a copy revision under the same evidence scope requires a new `listing_version_id`. A price or promotion state change by itself is an external Offer-context refresh, not permission or a requirement to rewrite locked copy; create a new Listing version only when a Listing field changes.
+`project_id`, `selection_run_id` and `candidate_id` come from the frozen selection stage and may be absent. If any other upstream identifier is missing, record it in `unknowns` as a gap. Do not invent a replacement that appears to preserve lineage. A changed product, offer scope, marketplace, or variation requires a new `listing_run_id`; a copy revision under the same evidence scope requires a new `listing_version_id`. A price or promotion state change by itself is an external Offer-context refresh, not permission or a requirement to rewrite locked copy; create a new Listing version only when a Listing field changes.
 
 ## 2. Three evidence lanes
 

@@ -22,7 +22,36 @@ class BreakthroughArithmeticTests(unittest.TestCase):
     def base(self):
         return {**{field: 4 for field in breakthrough.SCORE_FIELDS}, "risk_penalty": 7,
                 "critical_fact_missing": False, "high_risk_claim_unmatched": False,
-                "hard_blocker": False, "evidence_confidence": "high"}
+                "hard_blocker": False, "evidence_confidence": "high",
+                "basis": "同屏 12 个竞品均未展示刻度", "evidence_ids": ["E-SERP-001"]}
+
+    def test_low_or_unknown_confidence_cannot_be_primary(self):
+        strong = {**self.base(), "risk_penalty": 0, **{f: 5 for f in breakthrough.SCORE_FIELDS}}
+        self.assertEqual(breakthrough.score_item(strong, 1)["decision"], "primary-attack")
+        low = breakthrough.score_item({**strong, "evidence_confidence": "低"}, 1)
+        self.assertEqual(low["decision"], "supporting")
+        self.assertIn("confidence_low", low["gate_reasons"])
+        unknown = breakthrough.score_item({**strong, "evidence_confidence": "unknown"}, 1)
+        self.assertEqual(unknown["decision"], "validate")
+        missing = breakthrough.score_item({k: v for k, v in strong.items() if k != "evidence_confidence"}, 1)
+        self.assertEqual(missing["decision"], "validate", "omitted confidence defaults to unknown")
+
+    def test_items_without_basis_or_evidence_ids_are_gated(self):
+        strong = {**self.base(), "risk_penalty": 0, **{f: 5 for f in breakthrough.SCORE_FIELDS}}
+        for drop in ({"basis": ""}, {"evidence_ids": []}, {"evidence_ids": None}):
+            with self.subTest(drop=drop):
+                result = breakthrough.score_item({**strong, **drop}, 1)
+                self.assertEqual(result["decision"], "validate")
+                self.assertIn("evidence_missing", result["gate_reasons"])
+        with self.assertRaises(ValueError):
+            breakthrough.score_item({**strong, "evidence_ids": "E1"}, 1)
+
+    def test_sorting_puts_decision_tier_before_score(self):
+        strong = {**self.base(), "risk_penalty": 0, **{f: 5 for f in breakthrough.SCORE_FIELDS}}
+        gated = breakthrough.score_item({**strong, "id": "A", "critical_fact_missing": True}, 1)
+        real = breakthrough.score_item({**self.base(), "id": "B"}, 2)
+        ordered = sorted([gated, real], key=lambda i: (breakthrough.DECISION_ORDER.index(i["decision"]), -i["adjusted_score"], i["id"]))
+        self.assertEqual([i["id"] for i in ordered], ["B", "A"], "supporting 73 ranks above gated validate 100")
 
     def test_independent_weighted_score(self):
         result = breakthrough.score_item(self.base(), 1)

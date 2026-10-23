@@ -113,6 +113,54 @@ ACTUAL_MONEY_FIELDS = (
     "actual_attributed_contribution_total",
     "actual_total_contribution_before_ads",
 )
+# 只算单位经济线时不需要的字段（库存、投放计划、新品固定投入）
+ECONOMICS_ONLY_OUT_OF_SCOPE = (
+    "vine_units", "planned_orders", "planned_ad_attributed_orders", "sellable_inventory",
+    "vine_reserved_units", "safety_stock_units", "other_locked_units", "forecast_daily_total_orders",
+    "replenishment_lead_days", "inbound_buffer_days", "planned_ppc_spend",
+    "vine_enrollment_fee", "vine_unit_landed_cost", "vine_unit_fulfillment_cost",
+    "coupon_fixed_fee", "deal_fixed_fee", "other_launch_support_fixed",
+)
+OTHER_INPUT_FIELDS = (
+    "marketplace", "scope_id", "currency", "data_mode", "units_per_order", "price_includes_tax",
+    "fees_verified", "costs_verified", "tax_basis_verified", "allow_revenue_proxy", "selling_price",
+    "referral_fee", "referral_fee_rate", "referral_fee_basis_amount", "referral_fee_control",
+    "returns_mode", "net_sales_already_refund_adjusted", "ad_attributed_sales_per_order",
+    "attributed_sales_data_class", "attributed_sales_scope", "attributed_mix_contribution_per_order",
+    "conversion_data_class", "attribution_status", "name",
+    "calculation_scope", "not_applicable_fields", "notes", "source_ids", "evidence_ids",
+)
+
+
+def known_input_fields() -> set[str]:
+    return set(
+        OPTIONAL_MONEY_FIELDS + RATE_FIELDS + COUNT_FIELDS + PLANNING_COUNT_FIELDS
+        + RETURN_RATE_MONEY_FIELDS + RETURN_ALLOWANCE_MONEY_FIELDS + ACTUAL_MONEY_FIELDS
+        + OTHER_INPUT_FIELDS
+    )
+
+
+def reject_unknown_fields(raw: dict[str, Any]) -> None:
+    """拼错的字段名不能被静默忽略（否则会被当成 0，结果偏乐观）。"""
+    import difflib
+    known = known_input_fields()
+    unknown = [
+        key for key in raw
+        if key not in known
+        and not key.startswith(("scenario_", "x_"))
+        and not key.endswith(("_source_ids", "_evidence_ids"))
+    ]
+    if unknown:
+        hints = []
+        for key in sorted(unknown):
+            close = difflib.get_close_matches(key, sorted(known), n=1, cutoff=0.75)
+            hints.append(f"{key}（是不是 {close[0]}？）" if close else key)
+        raise ValueError(
+            "UNKNOWN_INPUT_FIELDS: " + ", ".join(hints)
+            + "。不认识的字段不会被计算；请改正字段名，备注类字段请加 x_ 前缀。"
+        )
+
+
 OPTIONAL_ACTUAL_BUSINESS_MONEY_FIELDS = {
     "actual_total_sales",
     "actual_attributed_contribution_total",
@@ -281,7 +329,22 @@ def referral_fee(raw: dict[str, Any], transaction_revenue: Decimal) -> tuple[Dec
 
 
 def calculate(raw: dict[str, Any]) -> dict[str, Any]:
+    reject_unknown_fields(raw)
     validate_identity(raw)
+    calculation_scope = raw.get("calculation_scope", "FULL")
+    if calculation_scope not in {"FULL", "ECONOMICS_ONLY"}:
+        raise ValueError("calculation_scope must be FULL or ECONOMICS_ONLY")
+    economics_only = calculation_scope == "ECONOMICS_ONLY"
+    not_applicable = raw.get("not_applicable_fields", [])
+    if not isinstance(not_applicable, list) or not all(isinstance(x, str) for x in not_applicable):
+        raise ValueError("not_applicable_fields must be an array of field names")
+    allowed_na = set(OPTIONAL_MONEY_FIELDS + RETURN_RATE_MONEY_FIELDS + RETURN_ALLOWANCE_MONEY_FIELDS)
+    bad_na = sorted(set(not_applicable) - allowed_na)
+    if bad_na:
+        raise ValueError(f"not_applicable_fields may only list optional money fields: {', '.join(bad_na)}")
+    both = sorted(field for field in not_applicable if field in raw)
+    if both:
+        raise ValueError(f"field both supplied and declared not applicable: {', '.join(both)}")
     units_per_order = whole_nonnegative(raw, "units_per_order", ONE)
     if units_per_order != ONE:
         raise ValueError("units_per_order must be 1 sellable offer; normalize multi-offer orders before calculating")
@@ -312,6 +375,14 @@ def calculate(raw: dict[str, Any]) -> dict[str, Any]:
         assumed_zero_fields.remove("target_profit_per_order")
     if not price_includes_tax and "tax_rate" not in raw:
         assumed_zero_fields.append("tax_rate")
+    # 用户明确声明“不适用”的字段按 0 计，但不再算作假设；只算经济线时，库存/计划/新品固定投入不在范围内
+    excluded_from_assumed = set(not_applicable)
+    if economics_only:
+        excluded_from_assumed |= set(ECONOMICS_ONLY_OUT_OF_SCOPE)
+    if not price_includes_tax:
+        # 不含税站点（如美国）售价本身不含税，tax_rate 不适用
+        excluded_from_assumed.add("tax_rate")
+    assumed_zero_fields = [field for field in assumed_zero_fields if field not in excluded_from_assumed]
 
     transaction_revenue_including_tax = (
         selling_price
@@ -585,7 +656,9 @@ def calculate(raw: dict[str, Any]) -> dict[str, Any]:
         reason_codes.append("ASSUMED_ZERO_COST_FIELDS")
     if not (fees_verified and costs_verified and tax_basis_verified):
         reason_codes.append("UNVERIFIED_CORE_INPUTS")
-    if advertising_available_inventory < ZERO:
+    if economics_only:
+        reason_codes.append("INVENTORY_NOT_IN_SCOPE")
+    elif advertising_available_inventory < ZERO:
         reason_codes.append("VINE_OR_LOCKED_INVENTORY_EXCEEDS_SELLABLE")
     elif advertising_available_inventory == ZERO:
         reason_codes.append("NO_ADVERTISING_AVAILABLE_INVENTORY")
@@ -597,7 +670,8 @@ def calculate(raw: dict[str, Any]) -> dict[str, Any]:
     if raw.get("data_mode") == "EXISTING_PRODUCT" and any(raw.get(field) is None for field in actual_ads_fields):
         reason_codes.append("ACTUAL_PERIOD_METRICS_INCOMPLETE")
 
-    if operating_contribution <= ZERO or advertising_available_inventory <= ZERO:
+    inventory_blocks = (not economics_only) and advertising_available_inventory <= ZERO
+    if operating_contribution <= ZERO or inventory_blocks:
         overall_status = "BLOCKED"
     elif target_capacity is not None and target_capacity <= ZERO:
         overall_status = "BLOCKED"
@@ -607,7 +681,7 @@ def calculate(raw: dict[str, Any]) -> dict[str, Any]:
         overall_status = "PROVISIONAL"
     elif attributed_sales_scope != "PROMOTED" and contribution_for_attribution is None:
         overall_status = "PROVISIONAL"
-    elif "STOCKOUT_RISK" in reason_codes:
+    elif "STOCKOUT_RISK" in reason_codes and not economics_only:
         overall_status = "PROVISIONAL"
     elif assumed_zero_fields or not (fees_verified and costs_verified and tax_basis_verified):
         overall_status = "PROVISIONAL"
@@ -732,6 +806,8 @@ def calculate(raw: dict[str, Any]) -> dict[str, Any]:
             "max_operating_ppc_for_planned_ad_orders": money(max_operating_ppc_for_planned_ad_orders),
         },
         "assumed_zero_fields": sorted(set(assumed_zero_fields)),
+        "not_applicable_fields": sorted(set(not_applicable)),
+        "calculation_scope": calculation_scope,
         "warnings": [
             "All fees, costs, tax, attributed-sales, and conversion inputs must be verified for their marketplace, date, and scope.",
             "ACoS uses ad-attributed sales; contribution uses transaction economics. They are not interchangeable.",

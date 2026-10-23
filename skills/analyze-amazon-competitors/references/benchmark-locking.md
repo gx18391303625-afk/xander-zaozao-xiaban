@@ -6,7 +6,7 @@
 
 ## 上游输入
 
-优先读取 `$select-amazon-products` 的 `handoff.json`，保留：
+用户手上有选品插件产出的 `handoff.json` 时读取它并保留下列内容；没有就直接从产品方向/类目 seed 或锚点 ASIN 开始（选品已冻结，见 xander-operations/references/lineage-and-selection.md），缺的 ID 留空、不编造：
 
 - `project_id / selection_run_id / candidate_id`；
 - 站点、币种、研究日期、目标类目和市场 seed；

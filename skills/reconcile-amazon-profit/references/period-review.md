@@ -1,6 +1,6 @@
 # 期间利润与分摊
 
-先锁定目标：账户、站点、币种、业务时区、闭合起止日、父子 ASIN/SKU 与订单/广告的商品范围。逐来源登记请求窗口、实际覆盖、抓取时间、状态及回填成熟度。正式复盘按问题选 Sales/Business Reports、Orders、Finances、Ads、Data Kiosk、FBA/退货和内部成本凭证；不是每次全拉。Data Kiosk Economics 的 Net Proceeds 可作费用与回款交叉证据，不能直接替代 Business 销售额或最终利润。项目 `integrations/amazon-operations-review` 可验证既有组合输入，不能把 JSONL 冒充其旧 Business 输入，也不能把它的财务身份检查称为完整利润核算。
+先锁定目标：账户、站点、币种、业务时区、闭合起止日、父子 ASIN/SKU 与订单/广告的商品范围。逐来源登记请求窗口、实际覆盖、抓取时间、状态及回填成熟度。正式复盘按问题选 Sales/Business Reports、Orders、Finances、Ads、Data Kiosk、FBA/退货和内部成本凭证；不是每次全拉。Data Kiosk Economics 的 Net Proceeds 可作费用与回款交叉证据，不能直接替代 Business 销售额或最终利润。用户自己的复盘脚本或表格可以用来交叉验证，但其财务身份检查不能代替完整利润核算。
 
 建立互斥明细账，每行至少有来源 ID、事件/入账日期、交易/订单/货件 ID、SKU、费用科目、原币有符号金额、`INCLUDED/NETTED/EXTRA_PAID/ESTIMATED/UNKNOWN/USER_EXCLUDED`、证据等级、分摊依据和目标位置。由明细账汇总，而非把 GMV、净回款、广告账单和银行卡流水直接相减。核对广告报告花费与财务扣款的时间差及同一费用身份，避免双扣；站外服务、平台期间费与已资本化费用分开。
 

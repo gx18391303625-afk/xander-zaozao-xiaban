@@ -9,6 +9,7 @@ description: "核算亚马逊站内广告盈亏线，设计或审计 SP/SB/SD �
 - 取数：广告对象 `xander_ads_list`（SP/SB 走 Ads API v1 统一接口：sp.campaigns / sp.adGroups / sp.ads / sp.targets / sp.keywords / sp.negativeKeywords / sb.*；SD 暂用原接口 sd.campaigns / sd.targets）；广告报表 `xander_ads_report`（Reporting API v1：preset campaigns、ad_groups、campaigns_summary 或自定 fields；搜索词 sp_search_terms、投放 sp_targeting、推广商品 sp_advertised_product 暂自动用 v3，2027-06-30 关停）；总销售与转化用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT。SP、SB、SD 分开统计。字段位置和口径见 [取数方法](../xander-operations/references/data-workflow.md)。
 - 快速经济线：`xander_calc_ad_economics`；完整计算与策略包校验用本技能 scripts 里的 Python 脚本（宿主能执行代码时）。
 - 改账户只走 [写入安全](../xander-operations/references/write-safety.md)：`xander_prepare_change` → 用户批准这一份 → `xander_execute_change` → 回读。可用操作：SP 活动开停/日预算、广告组开停/默认竞价、投放竞价/开停（关键词、商品、自动投放统一用 targetId）、广告商品开停、新增关键词、新增否词（广告组级/活动级）；SB 活动开停/日预算、投放竞价/开停；SD 活动开停/预算、投放竞价/开停（原接口）。开关只有用户能开。
+- 选品已冻结：做结构化策略包时 `lineage_mode` 用 `INDEPENDENT_NEW`（新品）或 `INDEPENDENT_EXISTING`（老品），不要用 `FULL_WORKFLOW`；方法文件里“交回 `$select-amazon-products`”的情况改为向用户说明这是产品层面问题、本插件不做立项判断（见 [追溯规则](../xander-operations/references/lineage-and-selection.md)）。
 - 未知数字是 null，不是 0；第三方估算标 ESTIMATED；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。
 
 # Build Amazon Advertising Strategy
@@ -47,7 +48,7 @@ Load each applicable reference in full. A narrow result does not inherit a full-
 | Existing-product optimization plan/diagnosis | [existing-product-optimization.md](references/existing-product-optimization.md) |
 | Recent 1–3 day/hourly pacing or Marketing Stream attribution | [hourly-data-and-attribution.md](references/hourly-data-and-attribution.md) |
 | Brand Analytics keyword ownership/link maturity | [keyword-share-and-link-maturity.md](references/keyword-share-and-link-maturity.md) |
-| Own/competitor exact-query CTR/CVR trends, query purchases and parent/child sales benchmarking | [keyword-share-and-link-maturity.md](references/keyword-share-and-link-maturity.md), including its performance-benchmarking handoff; keep estimates separate from actual Ads CVR |
+| Own/competitor exact-query CTR/CVR trends, query purchases and parent/child sales benchmarking | Not done here: the benchmark itself belongs to `analyze-amazon-competitors` ([表现对标](../analyze-amazon-competitors/references/query-performance-benchmarking.md)). This skill only consumes its finished handoff through [keyword-share-and-link-maturity.md](references/keyword-share-and-link-maturity.md) when an ad decision needs it; keep estimates separate from actual Ads CVR |
 | Placement, rank, same-screen competitor/product-page cross-diagnosis | [placement-and-competitor-cross-diagnosis.md](references/placement-and-competitor-cross-diagnosis.md) |
 | AMC path, lag, overlap or frequency analysis | [amazon-marketing-cloud.md](references/amazon-marketing-cloud.md) |
 | Current eligibility, placement, attribution, fees, promotions, Vine, reviews or authority | [policy-permissions-and-onsite-support.md](references/policy-permissions-and-onsite-support.md) |

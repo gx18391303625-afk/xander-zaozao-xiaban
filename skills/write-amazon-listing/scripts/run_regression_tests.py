@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+
 import importlib.util
 import datetime as dt
 import copy
@@ -414,6 +416,20 @@ def run() -> int:
         result = package_validator.validate(intake)
         assert result["structurally_valid"] is True
 
+    @test("intake rejects blocked role carrying eligible flags")
+    def _() -> None:
+        release = valid_release()
+        keywords = json.loads(json.dumps(release["keyword_library"]))
+        keywords[0]["role"] = "HOLD_CLAIM"
+        keywords[1]["front_end_copy_eligible"] = True
+        intake = {"mode": "INTAKE", "contract_version": "1.0",
+                  **{key: release[key] for key in package_validator.STABLE_IDS},
+                  "product": release["product"], "keyword_library": keywords}
+        result = package_validator.validate(intake)
+        conflicts = [f for f in result["findings"] if f["code"] == "KEYWORD_ROLE_ELIGIBILITY_CONFLICT"]
+        assert len(conflicts) == 3, conflicts
+        assert result["structurally_valid"] is False
+
     @test("raw Stage 2 listing_handoff is inferred as INTAKE")
     def _() -> None:
         release = valid_release()
@@ -577,6 +593,27 @@ def run() -> int:
         package = valid_release()
         package["candidate_id"] = "CAN-OTHER"
         assert "STABLE_ID_MISMATCH" in codes(package_validator.validate(package))
+
+    @test("frozen selection-stage IDs may be absent without blocking validity")
+    def _() -> None:
+        package = valid_release()
+        for key in ("project_id", "selection_run_id", "candidate_id"):
+            package.pop(key, None)
+            if isinstance(package.get("upstream_snapshot", {}).get("stable_ids"), dict):
+                package["upstream_snapshot"]["stable_ids"].pop(key, None)
+        found = codes(package_validator.validate(package))
+        assert "STABLE_ID_MISSING" not in found, found
+        assert "STABLE_ID_MISMATCH" not in found, found
+
+    @test("missing non-selection upstream ID warns until declared in unknowns")
+    def _() -> None:
+        package = valid_release()
+        package.pop("keyword_run_id")
+        if isinstance(package.get("upstream_snapshot", {}).get("stable_ids"), dict):
+            package["upstream_snapshot"]["stable_ids"].pop("keyword_run_id", None)
+        assert "LINEAGE_GAP_UNDECLARED" in codes(package_validator.validate(package))
+        package["unknowns"] = list(package.get("unknowns", [])) + ["keyword_run_id: no keyword-library stage"]
+        assert "LINEAGE_GAP_UNDECLARED" not in codes(package_validator.validate(package))
 
     @test("canonical grouped Stage 2 handoff is accepted without relabeling")
     def _() -> None:

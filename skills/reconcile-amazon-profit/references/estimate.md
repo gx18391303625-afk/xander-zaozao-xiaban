@@ -2,13 +2,27 @@
 
 只取本题所需的销售、广告、交易费用样本及有批次依据的成本。列公式、样本外推依据、已计与未计项，标“暂定”。用户给出的均摊法可作为明确标注的情景模型，不能称逐单真实归属；若用户指定排除退款/促销等，限定本次情景。
 
-用户只问已给数字的公式、小计或明确假设情景时，可直接用透明算术回答，标明“用户给定数据/假设算术，未做生产口径核验”，不必为这类回答登记共享数据。它不更新项目正式指标，不认证当前期间利润，也不允许把已失效/越界证据自动改称假设再使用。输出本项目日常经营利润时仍走下述绑定入口；缺核心费用时可先给已知小计而不冒称利润。
+用户只问已给数字的公式、小计或明确假设情景时，可直接用透明算术回答，标明“用户给定数据/假设算术，未做口径核验”。这类回答不更新档案里的正式指标，不认证当前期间利润，也不能把已失效/越界的证据改称“假设”再用。
 
-在“亚马逊最强工作台”项目，先读 `CURRENT_STATE.md`、`PROJECT_STATE.json` 的相关段及 `OPERATING_DATA_SOP.md`。日常订单利润复用 `integrations/amazon-operations-review/src/daily-profit.mjs` 的 `estimateBoundDailyProfit` 或其 CLI，不另建公式引擎。调用前查当前代码契约、`SHARED_DATA.md` 与 `SHARED_DATA_REGISTRY.json`：
+## 标准流程（本插件）
 
-- 输入 `mode=DAILY_ESTIMATE`；提供 `date/timezone/marketplace/currency/asins`、同币种整数分 `salesMinor/adSpendMinor`、两者来源、`requiredCostIds`、`costs`。
-- 成本逐项提供 `id/amountMinor/currency/evidenceClass/source/note/appliesToDate/appliesToAsins/componentKeys`；未知金额为 `null`。计入类仅 `MATCHED_ACTUAL`、`OBSERVED_FEE_ESTIMATE`、`CONFIRMED_COST_ESTIMATE`；`HISTORICAL_UNVERIFIED`、`UNKNOWN`、`USER_EXCLUDED` 不扣除。`componentKeys` 标识互不重叠的账务组成。逐项检查出处、批次与外推基础，程序不能认证填写的证据等级。
-- 生产调用要有有效 `inputBindings.policy/data`，各为精确 `{id,version,sha256}`；数据绑定的 payload 必须与除 `inputBindings` 外的完整输入相同。失效、越界或哈希变化时重新审查并显式登记，不静默改绑。`estimateDailyProfit` 只是无绑定算术/测试入口，不能声称通过生产闸门。历史回放通过也不证明当前有效。
-- 核对返回 `bindingStatus/status/missingRequired/included/excluded`。`PARTIAL_COSTS_NOT_PROFIT` 时可报告 `knownCostSubtotalBeforeAdsMinor`，也可减去已知广告得到“已知广告后收支小计”，同时保留缺口；两者都不是利润，不能用小计替换脚本中为空的利润字段。`PROVISIONAL_ORDER_PROFIT_NOT_FINAL` 也不是最终利润。`finalProfit` 保持空值。
+1. **定范围**：日期（已闭合还是截至某时）、业务时区、站点、币种、ASIN/SKU。当日估算允许未闭合窗口，但写明截止时点，不冒充完整日。
+2. **取收入与费用**：销售用 `GET_SALES_AND_TRAFFIC_REPORT` 或订单（`/orders/2026-01-01/orders`，includedData=PROCEEDS,EXPENSE 可拿到订单级收入与费用）；平台费用与退款用财务交易 `/finances/2024-06-19/transactions`（有限期间）；广告花费用 `xander_ads_report`。同一笔费用只从一个来源计入。
+3. **取成本**：`xander_archive_overview` / `xander_archive_history` 读每个 SKU 在该日期有效的采购价、头程、其他单件成本（按 effective_from 取对应批次的值）。档案没有的成本就是缺口，不当 0、不拿别的产品顶替；问用户并在确认后用 `xander_archive_set_fact` 记下。
+4. **逐项分级**（每行写来源、日期、金额、币种）：
+   - 计入：实际匹配的金额（`MATCHED_ACTUAL`）、有依据的观察费用样本（`OBSERVED_FEE_ESTIMATE`）、用户确认过的成本估计（`CONFIRMED_COST_ESTIMATE`）；
+   - 不计入：未核实的历史数（`HISTORICAL_UNVERIFIED`）、未知（`UNKNOWN`）、用户本次排除（`USER_EXCLUDED`）。
+   - 每一行标好它属于哪个账务组成（收入、平台费、配送费、广告、售出成本、退款……），互不重叠。
+5. **计算**：用 `xander_calc_profit`（或整数分/Decimal 透明算术），把上面每一项填进去；它会自动检查核心项（收入、平台/配送费、广告、售出成本、退款）是否齐全。
+6. **出结果**：
+   - 核心项齐、全部有依据 → “暂定订单利润”（`ESTIMATE`），不是最终利润；
+   - 缺任何核心项 → 只给“已知收支小计”，可以再减去已知广告给“已知广告后收支小计”，同时列缺口。两种小计都不叫利润；
+   - 最终利润只能来自结算对账（`SETTLEMENT`）。
 
-项目中已撤销的旧入库/仓储单件假设不得改名计入、构造利润下限或保守预留。已付款费用样本不是完整期间结算。没有项目专用入口时，可用可审计的 Decimal/整数分粗算并展示每一步与缺口。已配置项目若仅因运行环境不可用，最多给标注“离线暂算，未通过项目版本/成本准入闸门”的独立结果，不作为生产利润或广告执行依据；版本失效、哈希不符、证据越界等拒绝是实质阻断，不能改走临时计算绕过。输入不满足现有脚本的非负收入/费用限制时保留原符号并走适用的期间明细模型，不取绝对值或补零强塞。
+## 底线
+
+- 已撤销或已失效的成本假设，不得改名计入，也不能用来构造利润下限或“保守预留”。
+- 已付款的费用样本不等于完整期间结算。
+- 收入或费用出现负数时保留原符号，走期间明细模型，不取绝对值、不补零硬塞。
+- 缺成本时算出来的“利润”是偏乐观的，不能叫“保守估计”。
+- 用户有自己的利润计算脚本或表格时，先看清它的输入口径和适用范围，可以复用；但“有个脚本”不等于它覆盖本次问题。

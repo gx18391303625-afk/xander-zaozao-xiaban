@@ -723,8 +723,7 @@ def main() -> int:
             workflow_ids[field] = None
         else:
             workflow_ids[field] = value.strip()
-    if any(workflow_ids.values()) and not workflow_ids["project_id"]:
-        warnings.append("已提供部分工作流 ID，但缺 project_id；跨阶段追溯不完整。")
+    # 选品阶段已冻结：project_id / selection_run_id / candidate_id 缺省是正常情况，不再提示。
 
     marketplace_raw = data.get("marketplace")
     marketplace = (

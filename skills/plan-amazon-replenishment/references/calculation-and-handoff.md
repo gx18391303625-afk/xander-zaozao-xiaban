@@ -4,7 +4,7 @@
 
 当前项目有合适计算器时先读其实际输入、范围和状态语义。记录路径/版本或哈希及本次输入，不以“存在一个脚本”证明覆盖本问题。没有合适引擎时可在本次输出目录做透明Decimal/整数件数和日期计算，保留输入/公式/校验；不得声称经过不存在的自动拦截。
 
-在本技能相邻的 select-amazon-products 已安装时，可复用其 references/replenishment-and-seasonality.md 和 scripts/calculate_replenishment_plan.py；先确认文件存在并读参考及参数。它支持给定恒定日需下的路线交期、触发、桥接量，不抓库存、不做预测、不分配颜色、不做分批动态在途。
+（选品插件已冻结、不随本插件提供。若用户另行安装了 select-amazon-products，才可复用其 references/replenishment-and-seasonality.md 和 scripts/calculate_replenishment_plan.py；没有就用插件的 `xander_calc_replenishment` 或本技能的逐日投影规则。）以下是复用时的注意事项：先确认文件存在并读参考及参数。它支持给定恒定日需下的路线交期、触发、桥接量，不抓库存、不做预测、不分配颜色、不做分批动态在途。
 
 它的JSON核心输入为as_of_date、last_economic_fba_arrival_date、inventory_position_units及scope、planning_daily_demand_units、safety_stock_days、planned_reorder_quantity_units、primary_route_id和可选bridge_route_id、routes。路线包括route_id、quantity_min/max_units和production_days、qc_prep_days、transit_days、customs_buffer_days、fba_receiving_days、risk_buffer_days。未知留null，不能为通过结构校验补零。解析为绝对路径，通过--input输入文件或标准输入；不依赖项目当前目录。
 

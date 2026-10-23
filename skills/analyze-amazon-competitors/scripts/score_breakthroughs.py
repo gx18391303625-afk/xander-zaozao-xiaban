@@ -54,7 +54,15 @@ GATE_LABELS_ZH = {
     "critical_fact_missing": "关键事实缺失",
     "high_risk_claim_unmatched": "高风险主张缺少匹配证据",
     "hard_blocker": "硬红线",
+    "evidence_missing": "缺少依据或证据ID",
+    "confidence_low": "证据置信度低（最高辅助候选）",
+    "confidence_unknown": "证据置信度未知（最高待验证）",
 }
+
+# 决策档位：先按档位排序，再按分数。被闸门压档的高分项不会排在真正的主攻候选前面。
+DECISION_ORDER = ["primary-attack", "supporting", "validate", "deprioritize", "blocked"]
+# 置信度封顶：低 → 最高辅助；未知 → 最高待验证
+CONFIDENCE_CAP = {"high": "primary-attack", "medium": "primary-attack", "low": "supporting", "unknown": "validate"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -122,6 +130,20 @@ def classify(score: float) -> str:
     return "deprioritize"
 
 
+def cap(decision: str, ceiling: str) -> str:
+    return decision if DECISION_ORDER.index(decision) >= DECISION_ORDER.index(ceiling) else ceiling
+
+
+def has_evidence(item: dict[str, Any]) -> bool:
+    basis = item.get("basis")
+    ids = item.get("evidence_ids")
+    ok_basis = isinstance(basis, str) and basis.strip() != ""
+    ok_ids = isinstance(ids, list) and any(isinstance(x, str) and x.strip() for x in ids)
+    if ids is not None and not isinstance(ids, list):
+        raise ValueError(f"{item.get('id', '<unknown>')}: 'evidence_ids' must be a list of strings")
+    return ok_basis and ok_ids
+
+
 def score_item(item: dict[str, Any], index: int) -> dict[str, Any]:
     opportunity_id = str(item.get("id") or f"O{index:02d}")
     name = str(item.get("name") or opportunity_id)
@@ -153,8 +175,10 @@ def score_item(item: dict[str, Any], index: int) -> dict[str, Any]:
         gate_reasons.append("high_risk_claim_unmatched")
     if hard_blocker:
         gate_reasons.append("hard_blocker")
+    if not has_evidence(normalized):
+        gate_reasons.append("evidence_missing")
     if gate_reasons:
-        decision = "blocked" if "hard_blocker" in gate_reasons else "validate"
+        decision = "blocked" if "hard_blocker" in gate_reasons else cap(decision, "validate")
 
     raw_confidence = str(normalized.get("evidence_confidence", "unknown")).strip().lower()
     confidence = CONFIDENCE_ALIASES.get(raw_confidence)
@@ -162,6 +186,10 @@ def score_item(item: dict[str, Any], index: int) -> dict[str, Any]:
         raise ValueError(
             f"{opportunity_id}: 'evidence_confidence' must be high/medium/low/unknown or 高/中/低/未知"
         )
+    capped = cap(decision, CONFIDENCE_CAP[confidence])
+    if capped != decision:
+        gate_reasons.append(f"confidence_{confidence}")
+        decision = capped
 
     return {
         **normalized,
@@ -202,7 +230,7 @@ def main() -> int:
         result_ids = [item["id"] for item in results]
         if len(result_ids) != len(set(result_ids)):
             raise ValueError("Opportunity IDs must be unique")
-        results.sort(key=lambda item: (-item["adjusted_score"], item["id"]))
+        results.sort(key=lambda item: (DECISION_ORDER.index(item["decision"]), -item["adjusted_score"], item["id"]))
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

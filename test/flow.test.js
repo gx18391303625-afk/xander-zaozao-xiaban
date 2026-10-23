@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // 端到端：接入 → 读数据 → 出提案 → 开关拦截 → 批准执行 → 回读；以及各种失败保护。
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,6 +35,16 @@ test('读卖家接口与广告列表', async () => {
   assert.deepEqual(call.body.targetTypeFilter.include, ['KEYWORD']);
   assert.equal(call.headers['amazon-ads-clientid'], 'acid');
   assert.equal(call.headers['amazon-advertising-api-scope'], '999');
+});
+
+test('卖家报表：边下载边解压写盘，预览只读开头', async () => {
+  const { collectReport } = await import('../lib/spapi.js');
+  const r = await collectReport('main', 'SPR1');
+  assert.equal(r.status, 'DONE');
+  assert.equal(r.preview.totalLines, 50001);
+  assert.match(r.preview.head, /^sku\tasin/);
+  assert.equal(fs.statSync(r.file).size, r.bytes);
+  assert.ok(!fs.existsSync(`${r.file}.part`));
 });
 
 test('开关关着时：可以出提案，但不能执行', async () => {
@@ -247,7 +258,13 @@ test('v1 报表：自动找广告主账户 → 申请 → 下载', async () => {
   assert.match(first.note, /还在生成/);
   const done = await collectAdsReport('main', r.reportId);
   assert.equal(done.status, 'COMPLETED');
-  assert.equal(done.rows, 1);
+  assert.ok(create.body.reports[0].query.fields.includes('advertiserAccount.entityId'));
+  assert.equal(done.rows, 1, '全球账户混了 UK 的行，只保留 US');
+  assert.deepEqual(done.各站点行数, { US: 1, UK: 1 });
+  assert.match(done.note, /只保留 US/);
+  const kept = JSON.parse(fs.readFileSync(done.file, 'utf8'));
+  assert.equal(kept[0].站点, 'US');
+  assert.equal(JSON.parse(fs.readFileSync(done.allSitesFile, 'utf8')).length, 2);
   const { loadConfig } = await import('../lib/config.js');
   assert.equal(loadConfig().stores.main.ads.accounts.US.advertiserAccountId, 'amzn1.ads-account.g.TEST', '账户 ID 已缓存');
 });

@@ -2,6 +2,13 @@
 
 Read this for a standalone `ECONOMICS_ONLY` calculation, or before the full-strategy budget gates in [economics-and-budget-gates.md](economics-and-budget-gates.md). Use [calculate_ad_economics.py](../scripts/calculate_ad_economics.py) when available. Choose `ESTIMATE` or `RECONCILED` depth from [SKILL.md](../SKILL.md); a single metric needs only its supported inputs, not the full package schema.
 
+## Calculator usage (read first)
+
+- For a standalone break-even / target ACoS / CPC question, pass `"calculation_scope": "ECONOMICS_ONLY"`. Inventory, Vine, launch-support and planning counts are then out of scope: they are not assumed zero and missing inventory does not produce `BLOCKED`. Use the default `FULL` scope only inside a full strategy package.
+- When the seller confirms a cost genuinely does not apply (no coupon, no duty, no prep), list it in `not_applicable_fields`. Those fields count as zero **by confirmation**, not as assumptions, so they no longer force `PROVISIONAL`. Never list a field just to clear the status; unknown is not the same as not applicable.
+- Unknown or misspelled input fields are rejected (`UNKNOWN_INPUT_FIELDS`, with a suggested correction). Fix the name rather than dropping the value; put free-text notes in `x_`-prefixed fields.
+- Explain the result to the user in plain words: `READY_ESTIMATED` = the economics are complete but CVR/attributed sales are estimates; `PROVISIONAL` = some cost was assumed zero (list which ones, and say the result is therefore optimistic); `BLOCKED` = no room for ads at this price/cost.
+
 ## Accounting scope
 
 For an explicit `ESTIMATE`, use the smallest supported model and label assumptions, excluded costs and provisional output. Do not require all source systems, launch scenarios or final settlement merely to estimate order profit. For `RECONCILED`, align relevant first-party sales, orders, fees, refunds, Ads and costs by date, timezone, entity scope, definition, attribution window and backfill. Neither depth relaxes cost admission or live-change readiness.

@@ -17,7 +17,7 @@
 - `keyword_run_id`；
 - 对应工作簿、RAW manifest 和快照日期。
 
-任一 ID 缺失时可以继续，但写入 `unknowns`，不能新建一个看似相同却无法回链的 ID 覆盖原值。
+选品阶段已冻结：`project_id / selection_run_id / candidate_id` 没有就留空，不必写入缺口；其他 ID 缺失时可以继续，但写入 `unknowns`。任何情况都不能新建一个看似相同却无法回链的 ID 覆盖原值。
 
 ## JSON 最低结构
 

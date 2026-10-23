@@ -105,7 +105,7 @@
 - `target_price`：缺失不阻塞建库，只使价格竞争背景暂定。
 - `review_stage.current` 是已拥有评论；`target_min/max` 是目标窗口；`decision_basis_stage` 明确本次竞争背景与词库分层按 `CURRENT / TARGET_RANGE / BOTH` 哪个阶段判断。
 - `competitors`：保留每个输入位置；查询时按规范 ASIN 去重。未给 `order_basis` 时默认 `user_provided_order`，不追问，不影响采集全部 ASIN。
-- `project_id / selection_run_id / candidate_id / competitor_lock_run_id`：承接第一步和竞品锁定阶段的稳定 ID。缺失不阻止独立建库，但完整工作流必须列入交接缺口。
+- `project_id / selection_run_id / candidate_id / competitor_lock_run_id`：承接选品和竞品锁定阶段的稳定 ID。选品已冻结：前三个没有就留空，不列缺口；`competitor_lock_run_id` 缺失不阻止独立建库，但要写入交接的 `unknowns`。都不能编造。
 - 锁定竞品使用统一字段：`source_role = USER_SUPPLIED / UPSTREAM_SELECTED / RESEARCH_ADDED`；`primary_role` 与 `roles[]` 使用 `LEADER / LAUNCH_PEER / DIRECT_PRICE_FORM / NEW_ENTRANT / DIFFERENTIATED_CHALLENGER / ADJACENT_ALTERNATIVE`；`lock_status` 和 `keyword_acquisition_scope` 按竞品锁定契约填写。
 - `IDENTITY_PENDING / EXCLUDED_INVALID` 不要求伪造 `primary_role` 或非空 `roles[]`，但必须使用 `NO_QUERY` 并保留身份核验依据；其余锁定状态必须有统一角色。
 - 提供 `competitor_lock_run_id` 时，关键词 Skill 不重新挑选竞品。只核对身份和快照；明确冲突才允许变更角色，并必须保留 `previous_role / change_reason / evidence_ids`。

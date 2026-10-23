@@ -29,6 +29,8 @@ listing_run_id
 listing_version_id
 ```
 
+Product selection is frozen in this plugin: `project_id`, `selection_run_id` and `candidate_id` may be absent, so set `lineage_mode` to `INDEPENDENT_NEW` or `INDEPENDENT_EXISTING` with an `independent_scope`, and keep binding the competitor-lock, keyword and Listing snapshots that do exist (see xander-operations/references/lineage-and-selection.md).
+
 Create new immutable IDs:
 
 ```text
@@ -199,7 +201,7 @@ If evidence points to another root cause, do not compensate with bids. Create a 
 - `$write-amazon-listing` for Listing/offer-message problems;
 - `$build-amazon-keyword-library` for query-role or relevance gaps;
 - `$analyze-amazon-competitors` for competitor/price/rating-barrier changes;
-- `$select-amazon-products` for non-viable economics, supply, compliance, or product-market issues.
+- product-level issues (non-viable economics, supply, compliance, or product-market fit): product selection is frozen in this plugin — explain the evidence to the user as a product-level decision outside this plugin instead of handing back to `$select-amazon-products`.
 
 The handback diagnoses and cites evidence; it does not modify the upstream artifact itself.
 

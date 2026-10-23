@@ -257,20 +257,24 @@ export function buildTools(version) {
     // ---------------- 计算器 ----------------
     {
       name: 'xander_calc_ad_economics',
-      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC。缺核心输入会返回 INCOMPLETE 和缺口，不拿 0 凑。金额用站点币种的普通数字。',
+      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC（CPC 向下取整到分）。含税站点给 vatPct，利润率底线按不含税净销售额算；金额底线与比例底线取更严格的。可选成本没给会按 0 假设并标 PROVISIONAL（偏乐观）；卖家确认确实没有的放进 notApplicable。缺核心输入返回 INCOMPLETE。状态：BLOCKED（没有广告空间）/ PROVISIONAL / READY_ESTIMATED。更完整的模型用技能里的 calculate_ad_economics.py（calculation_scope=ECONOMICS_ONLY）。',
       inputSchema: S({
-        price: num('售价'), referralFeePct: num('佣金比例，如 15'), fbaFee: num('FBA 配送费'), purchaseCost: num('采购成本（同币种）'),
-        firstLegCost: num('头程（同币种）'), otherUnitCost: num('其他单件成本'), returnsCostPerUnit: num('退货损耗/件'),
-        vatPct: num('含税站点的增值税率，如 20（美国不填）'), targetProfitPerUnit: num('目标每件利润'), targetMarginPct: num('目标利润率%'), cvrPct: num('广告转化率%'),
+        price: num('售价（含税站点填含税价）'), referralFeePct: num('佣金比例，如 15'), fbaFee: num('FBA 配送费'), purchaseCost: num('采购成本（同币种）'),
+        firstLegCost: num('头程（同币种）'), otherUnitCost: num('其他单件成本（包装、贴标、质检、关税、仓储等）'),
+        returnsCostPerUnit: num('退货非收入损耗/件'), refundLossPerUnit: num('预计退款收入损失/件'),
+        notApplicable: { type: 'array', items: { type: 'string', enum: ['otherUnitCost', 'returnsCostPerUnit', 'refundLossPerUnit'] }, description: '卖家确认不适用的可选成本' },
+        vatPct: num('含税站点的增值税率，如 20（美国不填）'), attributedSalesPerOrder: num('每单广告归因销售额（默认 = 售价）'),
+        targetProfitPerUnit: num('每件最低利润'), targetMarginPct: num('最低利润率%（按不含税净销售额）'), riskBufferPerUnit: num('额外风险缓冲/件'),
+        cvrPct: num('广告转化率%'),
       }),
       annotations: LOCAL_READ,
       async handler(a) { return calc.adEconomics(a); },
     },
     {
       name: 'xander_calc_replenishment',
-      description: '算补货：续航天数、断货日、按情景（默认 0.8/1/1.2 倍需求）的建议件数和整箱数。在途必须给 availableInDays（几天后可售），没有就不计入。',
+      description: '算补货（逐日推演）：续航天数、断货日、新货到之前的失销量，以及按情景（默认 0.8/1/1.2 倍需求）让窗口内每天都不跌破安全库存的最小补货件数和整箱数。在途必须给 availableInDays（第几天结束时入库，次日可卖），没有就不计入。新货到之前卖不出去的量不会被算进补货量。',
       inputSchema: S({
-        rows: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{sku, dailySales, sellable, inbound:[{qty, availableInDays}], leadTimeDays, safetyDays, coverDays, casePack, moq, unitCost}' } },
+        rows: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{sku, dailySales(件/天), sellable, inbound:[{qty, availableInDays}], leadTimeDays(新货第几天起可售), coverDays(新货要覆盖几天), safetyDays(窗口内每天至少留几天库存), casePack, moq, unitCost}' } },
         scenarios: { type: 'array', items: { type: 'number' } },
       }, ['rows']),
       annotations: LOCAL_READ,
@@ -278,10 +282,10 @@ export function buildTools(version) {
     },
     {
       name: 'xander_calc_profit',
-      description: '利润桥：逐项列收入/费用/广告/售出成本，标记 INCLUDED/NETTED/EXTRA_PAID/ESTIMATED/UNKNOWN/USER_EXCLUDED。缺核心项时只给“已知收支小计”，不叫利润。',
+      description: '利润桥：逐项列收入/费用/广告/售出成本/退款，标记 INCLUDED/NETTED/EXTRA_PAID/ESTIMATED/UNKNOWN/USER_EXCLUDED。核心项是收入、平台/配送费、广告、售出成本、退款；某项确实为 0 也要填 amount=0 表示已确认。缺核心项时只给“已知收支小计”，不叫利润。',
       inputSchema: S({
         currency: str('币种'),
-        items: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{name, amount(正数), category: revenue|fee|ads|cogs|refund|other, status}' } },
+        items: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{name, amount(正数；adjustment 按原符号), category: revenue|fee|ads|cogs|refund|adjustment|other, status}' } },
       }, ['items']),
       annotations: LOCAL_READ,
       async handler(a) { return calc.profitBridge(a); },

@@ -521,7 +521,8 @@ def nonplaceholder(value: Any) -> bool:
     if not nonempty(value):
         return False
     normalized = str(value).strip().upper()
-    alphanumeric = re.sub(r"[^A-Z0-9]", "", normalized)
+    # 兼容中文等非英文文本：任何语言的字母/数字都算有效内容（纯标点、全 0 仍视为占位符）
+    alphanumeric = re.sub(r"[\W_]", "", normalized)
     return (
         normalized not in PLACEHOLDER_IDS
         and PLACEHOLDER_TOKEN_RE.search(normalized) is None

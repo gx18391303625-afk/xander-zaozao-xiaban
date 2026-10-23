@@ -860,6 +860,70 @@ def run() -> int:
             return function
         return decorator
 
+    def economics_only_input(**overrides):
+        base = {
+            "marketplace": "US", "scope_id": "BOWL", "currency": "USD", "data_mode": "NEW_PRODUCT",
+            "calculation_scope": "ECONOMICS_ONLY", "price_includes_tax": False,
+            "fees_verified": True, "costs_verified": True, "tax_basis_verified": True,
+            "selling_price": "29.99", "referral_fee_rate": "0.15", "referral_fee_basis_amount": "29.99",
+            "fulfillment_fee": "5.2", "cogs": "4.1", "inbound_freight": "1.3",
+            "ad_attributed_sales_per_order": "29.99", "attributed_sales_data_class": "ESTIMATED",
+            "conversion_rate": "0.12", "conversion_data_class": "ESTIMATED",
+            "returns_mode": "ALLOWANCE_AMOUNT", "expected_refund_revenue_loss": "0.6", "return_nonrevenue_cost": "0.4",
+            "not_applicable_fields": [
+                "seller_retained_shipping", "seller_funded_discount", "coupon_discount_per_order",
+                "other_seller_funded_discount", "packaging", "prep_and_label", "quality_inspection", "duty",
+                "storage", "other_amazon_fees", "other_variable_cost", "coupon_fee_per_order",
+                "deal_fee_per_order", "other_onsite_promotion_cost_per_order", "target_profit_per_order",
+                "risk_buffer_per_order",
+            ],
+        }
+        base.update(overrides)
+        return base
+
+    @test("misspelled input field is rejected instead of silently treated as zero")
+    def _() -> None:
+        bad = economics_only_input()
+        bad["inbound_frieght"] = bad.pop("inbound_freight")
+        try:
+            economics.calculate(bad)
+        except ValueError as exc:
+            assert "UNKNOWN_INPUT_FIELDS" in str(exc) and "inbound_freight" in str(exc), exc
+        else:
+            raise AssertionError("misspelled field was accepted")
+
+    @test("annotation fields with x_ prefix are allowed")
+    def _() -> None:
+        result = economics.calculate(economics_only_input(x_note="来自工厂报价 PI-1"))
+        assert result["overall_status"] == "READY_ESTIMATED", result["reason_codes"]
+
+    @test("ECONOMICS_ONLY is not blocked by missing inventory or launch planning fields")
+    def _() -> None:
+        result = economics.calculate(economics_only_input())
+        assert result["overall_status"] == "READY_ESTIMATED", result["reason_codes"]
+        assert result["assumed_zero_fields"] == [], result["assumed_zero_fields"]
+        assert "INVENTORY_NOT_IN_SCOPE" in result["reason_codes"]
+        assert "NO_ADVERTISING_AVAILABLE_INVENTORY" not in result["reason_codes"]
+
+    @test("not_applicable_fields cannot hide a supplied value or unknown names")
+    def _() -> None:
+        for overrides in ({"duty": "0.5"}, {"not_applicable_fields": ["cogs_typo"]}):
+            payload = economics_only_input(**overrides)
+            try:
+                economics.calculate(payload)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(overrides)
+
+    @test("FULL scope still requires advertising-available inventory")
+    def _() -> None:
+        payload = economics_only_input()
+        payload.pop("calculation_scope")
+        result = economics.calculate(payload)
+        assert result["overall_status"] == "BLOCKED"
+        assert "NO_ADVERTISING_AVAILABLE_INVENTORY" in result["reason_codes"]
+
     @test("exact operating economics and target ceilings")
     def _() -> None:
         result = economics.calculate(exact_economics())
@@ -2307,6 +2371,31 @@ def run() -> int:
         package["onsite_support"]["coupons_or_deals"].append(future_row)
         result = validator.validate(package)
         assert result["plan_ready"] is True, result["findings"]
+
+    @test("independent lineage reaches plan readiness without frozen selection-stage IDs")
+    def _() -> None:
+        package = valid_strategy()
+        package["lineage_mode"] = "INDEPENDENT_NEW"
+        for key in ("project_id", "selection_run_id", "candidate_id"):
+            package.pop(key, None)
+        package["upstream_snapshots"].pop("selection", None)
+        for snapshot in package["upstream_snapshots"].values():
+            if isinstance(snapshot, dict):
+                for key in ("project_id", "selection_run_id", "candidate_id"):
+                    snapshot.pop(key, None)
+        package["independent_scope"] = {
+            "reason": "选品阶段已冻结，按独立范围制定",
+            "source_scope_id": "范围-狗碗-蓝",
+            "source_artifact_ids": [package["source_artifacts"][0]["source_artifact_id"]],
+        }
+        result = validator.validate(package)
+        assert result["plan_ready"] is True, result["findings"]
+
+    @test("Chinese free text is not mistaken for a placeholder")
+    def _() -> None:
+        assert validator.nonplaceholder("选品阶段已冻结") is True
+        assert validator.nonplaceholder("——") is False
+        assert validator.nonplaceholder("000") is False
 
     @test("expanded placeholder identities are rejected")
     def _() -> None:

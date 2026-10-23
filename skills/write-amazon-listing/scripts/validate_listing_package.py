@@ -44,6 +44,8 @@ STABLE_IDS = (
     "competitor_lock_run_id",
     "keyword_run_id",
 )
+# 选品阶段已冻结（另做独立插件）：它产出的 ID 不再要求，有就保留并核对一致。
+SELECTION_STAGE_IDS = ("project_id", "selection_run_id", "candidate_id")
 LISTING_IDS = ("listing_run_id", "listing_version_id")
 VISIBLE_LOCATIONS = {
     "title",
@@ -720,9 +722,15 @@ def validate(data: dict[str, Any]) -> dict[str, Any]:
             "Stage 2 schema_version or Stage 3 contract_version must be 1.0",
         )
 
+    declared_unknowns = json.dumps(data.get("unknowns", []), ensure_ascii=False)
     for key in STABLE_IDS:
-        if not is_nonempty_string(data.get(key)):
-            add("ERROR", "STABLE_ID_MISSING", key, f"{key} is required and must be preserved from upstream")
+        value = data.get(key)
+        if value is None or value == "":
+            # 缺失的上游 ID：不能编造。选品阶段的 ID 可直接缺省；其余缺失要在 unknowns 里说明。
+            if key not in SELECTION_STAGE_IDS and key not in declared_unknowns:
+                add("WARNING", "LINEAGE_GAP_UNDECLARED", key, f"{key} is absent; list it in unknowns instead of inventing an ID")
+        elif not is_nonempty_string(value):
+            add("ERROR", "STABLE_ID_INVALID", key, f"{key} must be a non-empty string when present")
 
     if mode == "RELEASE":
         for key in LISTING_IDS:
@@ -839,6 +847,15 @@ def validate(data: dict[str, Any]) -> dict[str, Any]:
             if flag_value is not None and not isinstance(flag_value, bool):
                 add("ERROR", "KEYWORD_ELIGIBILITY_INVALID", f"{location}.{flag}", f"{flag} must be a boolean or null")
         role = keyword_role(keyword)
+        # 上游给的角色和资格标记互相矛盾时，不能靠“哪个先被检查”来决定能不能放进文案
+        if role in BLOCKED_ROLES:
+            for flag in ("front_end_copy_eligible", "listing_indexing_eligible"):
+                if get_bool(keyword, flag):
+                    add("ERROR", "KEYWORD_ROLE_ELIGIBILITY_CONFLICT", f"{location}.{flag}",
+                        f"role {role!r} is blocked but {flag}=true; resolve upstream before drafting")
+        if role == "INDEXING_CANDIDATE" and get_bool(keyword, "front_end_copy_eligible"):
+            add("ERROR", "KEYWORD_ROLE_ELIGIBILITY_CONFLICT", f"{location}.front_end_copy_eligible",
+                "INDEXING_CANDIDATE is backend-only but front_end_copy_eligible=true; resolve upstream before drafting")
         if role == "LATER_STAGE_RELEVANT" and get_bool(keyword, "current_stage_eligible"):
             basis = keyword.get("stage_eligibility_basis")
             if not isinstance(basis, dict):

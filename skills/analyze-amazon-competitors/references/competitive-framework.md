@@ -129,6 +129,8 @@ Adjusted = clamp(Raw - RiskPenalty, 0, 100)
     "feasibility_speed": 3,
     "risk_penalty": 5,
     "evidence_confidence": "medium",
+    "basis": "同屏前 20 个竞品中 15 个未展示容量刻度；我方有实测照片",
+    "evidence_ids": ["E-SERP-003", "E-OWN-012"],
     "critical_fact_missing": false,
     "high_risk_claim_unmatched": false,
     "hard_blocker": false
@@ -147,7 +149,12 @@ python3 <skill-directory>/scripts/score_breakthroughs.py --input <opportunities.
 - `proof_strength < 3`；
 - `critical_fact_missing=true`：关键规格或我方能力未确认；
 - `high_risk_claim_unmatched=true`：比较、医疗、安全、认证、环保或兼容性主张无匹配证据；
-- `hard_blocker=true`：存在不可接受的合规/IP/产品责任红线。
+- `hard_blocker=true`：存在不可接受的合规/IP/产品责任红线；
+- 缺少 `basis`（观察或计算口径）或 `evidence_ids`（至少一个，回链页面、快照或上游证据）：只能 `待验证`。
+
+置信度另有封顶：`低` 最高 `辅助候选`，`未知`（或没填）最高 `待验证`；只有 `中/高` 才能成为 `主攻候选`。被压档时 `gate_reasons` 会写明原因。
+
+输出先按决策档位排序（主攻 → 辅助 → 待验证 → 降级 → 阻断），同档再按调整分。被闸门压档的高分项不会排到真正的主攻候选前面。
 
 三个布尔闸门字段都必须在每个候选中显式提供；脚本拒绝缺失字段，不能用省略来表示 `false`。Markdown 输出使用中文置信度与决策标签，JSON 输出保留规范化英文值，便于后续程序处理。
 

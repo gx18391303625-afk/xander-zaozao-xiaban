@@ -40,6 +40,14 @@ export function startMock() {
     if (url.pathname === '/sellers/v1/marketplaceParticipations') {
       return json(200, { payload: [{ marketplace: { id: 'ATVPDKIKX0DER', countryCode: 'US' }, participation: { isParticipating: true } }] });
     }
+    if (url.pathname === '/reports/2021-06-30/reports/SPR1') return json(200, { reportId: 'SPR1', reportType: 'GET_FLAT_FILE_OPEN_LISTINGS_DATA', processingStatus: 'DONE', reportDocumentId: 'DOC1' });
+    if (url.pathname === '/reports/2021-06-30/documents/DOC1') return json(200, { reportDocumentId: 'DOC1', url: `${base}/spdl/DOC1`, compressionAlgorithm: 'GZIP' });
+    if (url.pathname === '/spdl/DOC1') {
+      const lines = ['sku\tasin\tprice\tquantity'];
+      for (let i = 0; i < 50000; i++) lines.push(`SKU-${i}\tB0${String(i).padStart(8, '0')}\t19.99\t${i % 30}`);
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+      return res.end(zlib.gzipSync(Buffer.from(lines.join('\n') + '\n')));
+    }
     if (url.pathname === '/orders/2026-01-01/orders') return json(200, { orders: [{ orderId: '111-1' }] });
     const lm = url.pathname.match(/^\/listings\/2021-08-01\/items\/([^/]+)\/([^/]+)$/);
     if (lm) {
@@ -76,7 +84,7 @@ export function startMock() {
       if (req.method !== 'POST') return json(405, { message: 'v1 only accepts POST' });
       const [, , , action, resource] = url.pathname.split('/');
       if (resource === 'advertiserAccounts' && action === 'query') {
-        return json(200, { advertiserAccounts: [{ advertiserAccountId: 'amzn1.ads-account.g.TEST', alternateIds: [{ countryCode: 'US', entityId: 'ENT1', profileId: '999' }], displayName: 'Test', isGlobalAccount: true }] });
+        return json(200, { advertiserAccounts: [{ advertiserAccountId: 'amzn1.ads-account.g.TEST', alternateIds: [{ countryCode: 'US', entityId: 'ENT1', profileId: '999' }, { countryCode: 'UK', entityId: 'ENT2', profileId: '998' }], displayName: 'Test', isGlobalAccount: true }] });
       }
       if (resource === 'reports') {
         if (action === 'create') {
@@ -129,7 +137,10 @@ export function startMock() {
     }
     // ---- 报表下载（v1/v3 都给 gzip JSON） ----
     if (url.pathname.startsWith('/dl/')) {
-      const rows = [{ 'date.value': '2026-10-20', 'adProduct.value': 'SPONSORED_PRODUCTS', 'campaign.id': 'C1', 'metric.clicks': 12, 'metric.totalCost': 9.6 }];
+      const rows = url.pathname.includes('v3-')
+        ? [{ date: '2026-10-20', campaignId: 'C1', searchTerm: 'dog bowl', clicks: 12, cost: 9.6 }]
+        : [{ 'advertiserAccount.entityId': 'ENT1', 'date.value': '2026-10-20', 'adProduct.value': 'SPONSORED_PRODUCTS', 'campaign.id': 'C1', 'budgetCurrency.value': 'USD', 'metric.clicks': 12, 'metric.totalCost': 9.6 },
+          { 'advertiserAccount.entityId': 'ENT2', 'date.value': '2026-10-20', 'adProduct.value': 'SPONSORED_PRODUCTS', 'campaign.id': 'C9', 'budgetCurrency.value': 'GBP', 'metric.clicks': 5, 'metric.totalCost': 3.1 }];
       res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
       return res.end(zlib.gzipSync(Buffer.from(JSON.stringify(rows))));
     }
