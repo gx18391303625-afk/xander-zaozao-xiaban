@@ -1,0 +1,16 @@
+{
+  "name": "xander-zaozao",
+  "owner": {
+    "name": "Xander",
+    "url": "https://github.com/gx18391303625-afk"
+  },
+  "description": "Xander（自用）早早下班小助手的插件市场",
+  "plugins": [
+    {
+      "name": "xander-zaozao-xiaban",
+      "source": "./",
+      "description": "亚马逊个人卖家本地运营插件：六大模块 + 开关式写入授权",
+      "category": "productivity"
+    }
+  ]
+}

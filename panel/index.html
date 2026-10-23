@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>早早下班 · 开关面板</title>
+<style>
+:root {
+  --bg: #f6f4f1; --card: #ffffff; --ink: #1d1b19; --muted: #6f6a64; --line: #e7e2dc;
+  --brand: #e52b38; --brand-soft: #fde8e9; --on: #1f9d55; --on-soft: #e3f5ea; --warn: #b7791f; --warn-soft: #fdf3e1;
+  --off: #c9c3bc; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #141312; --card: #1d1b1a; --ink: #f1ede8; --muted: #a39d96; --line: #2e2b29;
+    --brand: #ff5a63; --brand-soft: #3a1c1e; --on: #3ccf7d; --on-soft: #16301f; --warn: #e3a640; --warn-soft: #362a14;
+    --off: #4a4542; --shadow: none; }
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.logo { width: 38px; height: 38px; border-radius: 10px; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+h1 { font-size: 20px; margin: 0; }
+.sub { color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: var(--card); border: 1px solid var(--line); color: var(--muted); }
+.pill b { color: var(--ink); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.grid > * { min-width: 0; }
+@media (min-width: 860px) { .grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; }
+.card h2 { font-size: 15px; margin: 0 0 4px; }
+.card .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+button { font: inherit; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 7px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+button.ok { background: var(--on); border-color: var(--on); color: #fff; }
+button.ghost { background: transparent; }
+.group { margin-top: 14px; }
+.group-title { font-size: 12px; color: var(--muted); letter-spacing: .04em; margin: 0 0 6px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-top: 1px solid var(--line); }
+.row:first-of-type, #ziniaoBox .row { border-top: 0; }
+.row .label { flex: 1; min-width: 0; }
+.row .label .name { font-weight: 560; }
+.row .label .meta { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; word-break: break-all; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; display: inline-block; }
+.tag.high { background: var(--brand-soft); color: var(--brand); }
+.tag.mid { background: var(--warn-soft); color: var(--warn); }
+.tag.low { background: var(--on-soft); color: var(--on); }
+.tag.beta { background: var(--line); color: var(--muted); }
+.lamp { width: 10px; height: 10px; border-radius: 50%; background: var(--off); flex: none; transition: .2s; }
+.lamp.on { background: var(--on); box-shadow: 0 0 0 4px var(--on-soft); }
+.switch { position: relative; width: 50px; height: 28px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch span { position: absolute; inset: 0; background: var(--off); border-radius: 999px; transition: .2s; cursor: pointer; }
+.switch span::before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch input:checked + span { background: var(--on); }
+.switch input:checked + span::before { transform: translateX(22px); }
+.switch input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 2px; }
+.switch input:disabled + span { opacity: .45; cursor: not-allowed; }
+.planned .name { color: var(--muted); }
+.ziniao { border: 1.5px dashed var(--brand); }
+.limits label { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 14px; }
+.limits input { width: 86px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button.active { background: var(--ink); color: var(--bg); }
+.prop { border-top: 1px solid var(--line); padding: 10px 0; font-size: 13px; }
+.prop:first-child { border-top: 0; }
+.prop .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.prop code { font-size: 12px; }
+.prop ul { margin: 6px 0 8px 18px; padding: 0; }
+.status { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--line); }
+.status.API_STATE_VERIFIED { background: var(--on-soft); color: var(--on); }
+.status.PROPOSED { background: var(--warn-soft); color: var(--warn); }
+.status.FAILED, .status.MISMATCH, .status.OUTCOME_UNKNOWN { background: var(--brand-soft); color: var(--brand); }
+.log { font-size: 12px; color: var(--muted); max-height: 260px; overflow: auto; }
+.log div { padding: 3px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.empty { color: var(--muted); font-size: 13px; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; opacity: 0; transition: .25s; pointer-events: none; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; }
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); max-width: 440px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog p { margin: 0 0 12px; }
+dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.err { background: var(--brand-soft); color: var(--brand); padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">早</div>
+    <div>
+      <h1>早早下班 · 写入开关面板</h1>
+      <div class="sub">开着的灯 = 允许 AI 在你批准后执行这一类改动。关着的灯，AI 连提案都执行不了。</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="onCount">已开 <b>0</b> 项</span>
+    <span class="pill" id="mode">审批：<b>对话</b></span>
+  </header>
+  <div class="err" id="err"></div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>官方接口写入开关</h2>
+      <p class="hint">全部默认关闭。建议只开你现在要用的那几项，用完关掉。“Beta”表示按官方文档实现、还没在大量真实账户上验证过，第一次用建议先开演练模式。</p>
+      <div class="bar">
+        <button class="primary" id="allOn">一键全开</button>
+        <button id="allOff">一键全关</button>
+      </div>
+      <div id="groups"></div>
+    </section>
+
+    <div style="display:grid; gap:16px; align-content:start;">
+      <section class="card ziniao">
+        <h2>紫鸟浏览器控制</h2>
+        <p class="hint">允许 AI 通过紫鸟浏览器打开你的店铺后台、读取页面，并在你批准后代为点击和填写。只在官方接口做不到时使用。不跟随“一键全开”。</p>
+        <div id="ziniaoBox"></div>
+      </section>
+
+      <section class="card">
+        <h2>执行方式</h2>
+        <p class="hint">“面板审批”更安全：AI 生成的提案必须在下面点“批准”才能执行。</p>
+        <div class="bar">
+          <div class="seg" id="approval">
+            <button data-v="chat">对话审批</button>
+            <button data-v="panel">面板审批</button>
+          </div>
+        </div>
+        <div class="row" style="border:0; padding-left:0">
+          <div class="label"><div class="name">演练模式</div><div class="meta">开启后执行只记录、不提交亚马逊，适合第一次试用。</div></div>
+          <label class="switch"><input type="checkbox" id="dryRun"><span></span></label>
+        </div>
+      </section>
+
+      <section class="card limits">
+        <h2>安全上限</h2>
+        <p class="hint">单次改动超过这些幅度，提案会直接被拒绝。</p>
+        <label>竞价单次最多改动 ±%<input type="number" id="bidChangePctMax" min="1"></label>
+        <label>预算单次最多改动 ±%<input type="number" id="budgetChangePctMax" min="1"></label>
+        <label>售价单次最多改动 ±%<input type="number" id="priceChangePctMax" min="1"></label>
+        <label>一个提案最多几项改动<input type="number" id="maxChangesPerProposal" min="1"></label>
+        <div class="bar" style="margin:8px 0 0"><button id="saveLimits">保存上限</button></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>最近的改动提案</h2>
+      <p class="hint">AI 生成的每份提案都在这里。状态“已提交待核对”“结果未知”的，请让 AI 用回读工具核对，不要重复提交。</p>
+      <div id="proposals"></div>
+    </section>
+
+    <section class="card">
+      <h2>写入日志</h2>
+      <p class="hint">保存在本机 ledger.jsonl，可随时查。</p>
+      <div class="log" id="ledger"></div>
+    </section>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog">
+    <h2 style="margin-top:0">一键全开？</h2>
+    <p>这会打开所有已实现的官方写入开关（不包括紫鸟）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
+    <label class="check"><input type="checkbox" id="understand"> 我明白：每次执行前我都会认真看提案里的新旧值。</label>
+    <div class="actions">
+      <button value="cancel">取消</button>
+      <button value="ok" class="primary" id="dlgOk" disabled>确认全开</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const token = new URLSearchParams(location.hash.slice(1)).get('t');
+const $ = (id) => document.getElementById(id);
+let S = null;
+
+const STATUS_CN = { PROPOSED: '待批准', EXECUTING: '执行中', API_STATE_VERIFIED: '已生效（接口回读一致）', AWAITING_READBACK: '已提交待核对', MISMATCH: '回读不一致', FAILED: '失败', OUTCOME_UNKNOWN: '结果未知', SKIPPED_STALE: '原值已变，已跳过', DRY_RUN: '演练', EXPIRED: '已过期', REJECTED: '已拒绝' };
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+
+async function api(path, body) {
+  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Xander-Token': token || '', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function riskTag(r) { return r === '高' ? '<span class="tag high">高风险</span>' : r === '中' ? '<span class="tag mid">中风险</span>' : r === '低' ? '<span class="tag low">低风险</span>' : ''; }
+
+function rowHtml(it) {
+  const planned = !it.implemented;
+  return `<div class="row ${planned ? 'planned' : ''}">
+    <span class="lamp ${it.on ? 'on' : ''}"></span>
+    <div class="label"><div class="name">${esc(it.label)}${planned ? '<span class="tag beta">规划中</span>' : riskTag(it.risk)}${it.beta ? '<span class="tag beta">Beta</span>' : ''}</div>
+      <div class="meta">${esc(it.id)}${it.changedAt ? ' · 上次切换 ' + new Date(it.changedAt).toLocaleString() : ''}</div></div>
+    <label class="switch" title="${planned ? '还没实现' : (it.on ? '点击关闭' : '点击打开')}"><input type="checkbox" data-id="${esc(it.id)}" ${it.on ? 'checked' : ''} ${planned ? 'disabled' : ''} aria-label="${esc(it.label)}"><span></span></label>
+  </div>`;
+}
+
+function render() {
+  const items = S.switches.items;
+  const normal = items.filter((x) => !x.special);
+  const groups = [...new Set(normal.map((x) => x.group))];
+  $('groups').innerHTML = groups.map((g) => `<div class="group"><p class="group-title">${esc(g)}</p>${normal.filter((x) => x.group === g).map(rowHtml).join('')}</div>`).join('');
+  const z = items.find((x) => x.special);
+  $('ziniaoBox').innerHTML = rowHtml(z) + (S.ziniaoConfigured ? '' : '<p class="hint" style="margin:6px 0 0">还没配置紫鸟：在终端运行 <code>xander setup</code> → 紫鸟浏览器。</p>');
+  $('onCount').innerHTML = `已开 <b>${items.filter((x) => x.on).length}</b> 项`;
+  $('mode').innerHTML = `审批：<b>${S.settings.approvalMode === 'panel' ? '面板' : '对话'}</b>${S.settings.dryRun ? ' · <b>演练中</b>' : ''}`;
+  document.querySelectorAll('#approval button').forEach((b) => b.classList.toggle('active', b.dataset.v === S.settings.approvalMode));
+  $('dryRun').checked = !!S.settings.dryRun;
+  for (const k of Object.keys(S.switches.limits)) if ($(k) && document.activeElement !== $(k)) $(k).value = S.switches.limits[k];
+
+  $('proposals').innerHTML = S.proposals.length ? S.proposals.map((p) => `<div class="prop">
+      <div class="head"><code>${esc(p.id)}</code><span class="status ${esc(p.status)}">${esc(STATUS_CN[p.status] || p.status)}</span>
+        ${p.panelApproved && p.status === 'PROPOSED' ? '<span class="status API_STATE_VERIFIED">面板已批准</span>' : ''}
+        <span class="sub">${esc(p.store)} · ${new Date(p.createdAt).toLocaleString()}</span></div>
+      <ul>${p.items.map((i) => `<li>${esc(i.label)}：${esc(i.old)} → <b>${esc(i.new)}</b> <span class="sub">${esc(JSON.stringify(i.target))}${i.status ? ' · ' + esc(STATUS_CN[i.status] || i.status) : ''}</span></li>`).join('')}</ul>
+      ${p.status === 'PROPOSED' && !p.panelApproved && Date.parse(p.expiresAt) > Date.now() ? `<div class="bar"><button class="ok" data-approve="${esc(p.id)}">批准</button><button class="ghost" data-reject="${esc(p.id)}">拒绝</button></div>` : ''}
+    </div>`).join('') : '<p class="empty">还没有提案。</p>';
+
+  $('ledger').innerHTML = S.ledger.length ? S.ledger.map((l) => `<div>${new Date(l.at).toLocaleString()} · <b>${esc(l.event)}</b> ${esc(l.op || '')} ${l.proposalId ? esc(l.proposalId) : ''} ${l.target ? esc(JSON.stringify(l.target)) : ''} ${l.error ? '· ' + esc(l.error) : ''}</div>`).join('') : '<p class="empty">暂无记录。</p>';
+}
+
+async function refresh() { try { S = await api('/api/state'); showErr(''); render(); } catch (e) { showErr(e.message); } }
+async function act(path, body, msg) { try { S = await api(path, body); render(); if (msg) toast(msg); } catch (e) { toast('失败：' + e.message); refresh(); } }
+
+document.addEventListener('change', (e) => {
+  const id = e.target.dataset?.id;
+  if (id) act('/api/switch', { id, on: e.target.checked }, e.target.checked ? '已打开' : '已关闭');
+  if (e.target.id === 'dryRun') act('/api/settings', { dryRun: e.target.checked }, e.target.checked ? '演练模式已开启' : '演练模式已关闭');
+  if (e.target.id === 'understand') $('dlgOk').disabled = !e.target.checked;
+});
+document.addEventListener('click', (e) => {
+  const a = e.target.dataset?.approve, r = e.target.dataset?.reject;
+  if (a) act('/api/proposal', { id: a, decision: 'approve' }, '已批准，回到对话里让 AI 执行');
+  if (r) act('/api/proposal', { id: r, decision: 'reject' }, '已拒绝');
+  if (e.target.closest('#approval') && e.target.dataset.v) act('/api/settings', { approvalMode: e.target.dataset.v }, '已切换审批方式');
+});
+$('allOff').onclick = () => act('/api/all', { on: false }, '已全部关闭');
+$('allOn').onclick = () => { $('understand').checked = false; $('dlgOk').disabled = true; $('dlg').showModal(); };
+$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（紫鸟除外）'); });
+$('saveLimits').onclick = () => act('/api/limits', Object.fromEntries(['bidChangePctMax', 'budgetChangePctMax', 'priceChangePctMax', 'maxChangesPerProposal'].map((k) => [k, Number($(k).value)])), '上限已保存');
+
+if (!token) showErr('缺少口令：请用终端里 `xander panel` 打印的完整网址打开。');
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "xander-zaozao-xiaban",
+  "version": "2.0.0",
+  "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件，支持 Claude 和 Codex（GPT）。",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "xander": "cli/xander.js" },
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "mcp": "node server/index.js",
+    "panel": "node cli/xander.js panel",
+    "setup": "node cli/xander.js setup",
+    "doctor": "node cli/xander.js doctor"
+  },
+  "repository": { "type": "git", "url": "https://github.com/gx18391303625-afk/xander-zaozao-xiaban.git" },
+  "keywords": ["amazon", "seller", "sp-api", "amazon-ads", "mcp", "claude", "codex", "plugin"],
+  "files": ["cli", "lib", "server", "panel", "skills", "docs", "examples", "plugin.json", "mcp.json", ".mcp.json", ".claude-plugin", ".codex-plugin", ".agents", "assets"]
+}

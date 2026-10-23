@@ -1,0 +1,26 @@
+# Business traffic and report coverage
+
+Use for retail traffic, child-ASIN comparisons, or reconciling Ads with Business Reports and Data Kiosk salesAndTraffic. This is not a requirement to fetch unrelated reports for a narrow question.
+
+## Data Kiosk source selection
+
+Consult the project's dated capability record before probing access. Reuse recorded end-to-end verification for the same account and Schema; revalidate affected access only when an error, Schema change or other evidence warrants it. This does not make old results fresh or prove every dataset is authorized. For a new analysis, reuse a compatible result or resume its query ID; otherwise obtain the necessary dated query and preserve Schema, requested/returned scope, capture time, definitions and backfill status.
+
+salesAndTraffic can supply business sales, units, order items and traffic when verified for the account. Match the actual fields and aggregation to Sales API/Business evidence; a successful three-ASIN/day cross-check does not establish whole-parent or all-date equivalence. Keep Sessions distinct from clicks and Unit Session Percentage distinct from order conversion. Data Kiosk Economics is a separate fee/net-proceeds source, not an interchangeable retail-sales denominator; use the economics reference when combining them.
+
+`ESTIMATE` uses sufficient supported evidence with provisional labels. `RECONCILED` aligns only relevant Data Kiosk, Sales, Orders, Finances and Ads inputs, not every interface for every metric. Daily-monitor restrictions on Ads calls or user-supplied totals still take precedence. A new source is not evidence of parser support: retain auditable field mapping, use only supported adapter inputs, and never relabel raw Data Kiosk JSONL as a Business Report to bypass validation.
+
+## Coverage and replay
+
+If the current project supplies an executable coverage/replay module through OPERATING_DATA_SOP.md, use it for supported combined retail/Ads reviews after acquiring the relevant raw snapshots. Take numbers from its shared result, preserve per-metric blockers, and verify replay rather than manually maintaining a second summary. A historical sample run is not a fresh report. Do not require this module for unrelated questions or interpret its structural success as a complete placement audit, final profit, API health check or execution approval.
+
+Where that project provides a bounded read-refresh adapter, use it for authorized missing-source queries: retain job IDs and resume outstanding jobs, stop uncertain creates from being blindly repeated, and keep reused-source timestamps separate from newly fetched data. Generated-but-empty reports remain gaps; a refresh is not permission to change campaign settings or schedule ongoing work.
+
+- Record requested dates separately from returned daily dates and valid coverage of sales, traffic and attribution fields. DONE is report-generation status, not proof of populated metrics or mature attribution. Investigate empty child tables and suspicious all-zero traffic; do not turn missing data into zero. Legitimate observed zero remains zero.
+- Daily rows alone do not prove each metric populated. Aggregated child rows do not establish per-child daily coverage. Compare only compatible populated windows; if seven sales days and six traffic days are available, label both and do not divide across them.
+- Sessions and Page Views are not search clicks and cannot yield main-image CTR. Unit Session Percentage uses units/sessions, not orders/sessions. Do not sum child sessions as deduplicated parent visitors; label any derived share as share of the selected child-session sum.
+- Separate advertised ASIN, purchased ASIN, parent and selected variants. Advertising one ASIN does not establish zero sibling exposure or halo purchases. Do not assume SP/SB/SD attributed orders are mutually exclusive.
+- For selected-product TACoS, reconcile product/ad-detail delivery to campaign delivery by day and campaign, then bind spend to advertised products and the same-window Business product-sales denominator. If using current SB creatives for historical mapping, disclose that evidence basis and resolve updates overlapping positive-spend dates; do not invent an allocation for mixed in/out-of-scope creatives. A verified supplied portfolio is not proof that every account ad product or campaign was included. Conversion attribution maturity is separate from this spend/retail-sales ratio.
+- Subtract identified friend/offsite quantities only with matching item/date evidence. The residual is not proven organic demand. Adjusted units over unadjusted sessions is not clean organic conversion. Preserve actual inventory consumption.
+- Reconcile source definitions, timezone, entity scope and backfill before explaining differences. A workbook generated from the same report is not independent corroboration. Never infer advertising increment or main-image causality from these descriptive ratios alone.
+- Deliver coverage and limitations with results. Required unavailable evidence makes the affected finding partial, not the entire unrelated task blocked. Reuse still-suitable reports; refresh only evidence needed for the current decision.

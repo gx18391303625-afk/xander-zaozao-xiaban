@@ -1,0 +1,4 @@
+interface:
+  display_name: "亚马逊竞品作战分析"
+  short_description: "锁定对标竞品、拆解攻防与视觉，核对搜索同屏和详情页竞争证据"
+  default_prompt: "使用 $analyze-amazon-competitors 按本次范围锁定或分析竞品，或仅核对搜索同屏与详情页竞争证据；保留已有角色和采样条件，不自动扩展为视觉简报或广告投放方案。"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "亚马逊经营利润与对账"
+  short_description: "核算商品经营利润，区分暂定估算、期间复盘与最终结算差异"
+  default_prompt: "用 $reconcile-amazon-profit 核算指定商品和期间的经营利润，并标明证据、缺口与结算状态。"

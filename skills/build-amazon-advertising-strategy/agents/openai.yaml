@@ -1,0 +1,7 @@
+interface:
+  display_name: "亚马逊站内广告策略"
+  short_description: "核算动态利润并制定站内广告策略，交叉诊断广告位、排名与竞品入口"
+  default_prompt: "使用 $build-amazon-advertising-strategy 按本次范围制定广告策略或交叉诊断广告位、关键词排名、搜索竞品与详情页证据，区分新品学习和老品优化，核对数据粒度及经济边界；默认只读分析或计划，不修改账户、价格或库存。"
+
+policy:
+  allow_implicit_invocation: true

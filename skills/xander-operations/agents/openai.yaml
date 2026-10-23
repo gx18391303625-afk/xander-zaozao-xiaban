@@ -1,0 +1,6 @@
+interface:
+  display_name: "Xander 早早下班 · 总协调"
+  short_description: "接入店铺与广告、跨模块复盘、查看写入开关、执行已批准的改动"
+  default_prompt: "使用 $xander-operations 先查看连接状态和店铺档案，再按本次范围分派到对应模块；任何亚马逊改动都先出精确提案，等我批准后再执行并回读。"
+policy:
+  allow_implicit_invocation: true

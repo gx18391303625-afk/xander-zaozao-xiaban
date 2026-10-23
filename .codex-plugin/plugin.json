@@ -1,0 +1,35 @@
+{
+  "name": "xander-zaozao-xiaban",
+  "version": "2.0.0",
+  "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件。竞品、关键词、Listing、广告、补货、利润六大模块；店铺/广告/卖家精灵/紫鸟按向导自己接入，令牌只存本机；所有写入按开关授权、逐项批准、执行后回读。",
+  "author": {
+    "name": "Xander"
+  },
+  "keywords": [
+    "amazon",
+    "seller",
+    "sp-api",
+    "amazon-ads",
+    "运营"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Xander（自用）早早下班小助手",
+    "shortDescription": "让日常运营更轻松，把时间还给生活。",
+    "longDescription": "给亚马逊个人卖家用的本地运营插件。\n\n六大模块：竞品分析、关键词词库、Listing、广告运营、库存补货、利润复盘。\n\n· 店铺、广告、卖家精灵、紫鸟按向导自己接入，令牌只存在你的电脑上。\n· 店铺档案库记住采购价、头程、箱规、交期，利润和补货算得准。\n· 所有写入默认关闭，像开灯一样逐项打开；每次改动都要你批准，执行后自动回读核对。",
+    "developerName": "Xander",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "帮我接入我的亚马逊店铺和广告账户。",
+      "分析我最近7天的销售、广告、库存和利润中最需要关注的问题。",
+      "根据库存、销量和交期算一下每个 SKU 要补多少箱。"
+    ],
+    "brandColor": "#E52B38",
+    "logo": "./assets/icon.png",
+    "composerIcon": "./assets/icon.png",
+    "logoDark": "./assets/icon.png",
+    "composerIconDark": "./assets/icon.png",
+    "websiteURL": "https://github.com/gx18391303625-afk/xander-zaozao-xiaban"
+  }
+}

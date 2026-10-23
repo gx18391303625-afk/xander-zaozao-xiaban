@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+# 本地数据和密钥永远不进仓库
+.xander-zaozao/
+secrets*.json
+*.db
+*.db-wal
+*.db-shm
+.env

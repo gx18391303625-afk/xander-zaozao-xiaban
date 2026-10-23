@@ -1,0 +1,4 @@
+interface:
+  display_name: "亚马逊库存补货与履约"
+  short_description: "预测在售商品补货需求、分配整箱数量并核对工厂海外仓与FBA状态"
+  default_prompt: "使用 $plan-amazon-replenishment，按最新销售和库存分析何时补货、各SKU补多少箱，并列明假设与待核实项。"

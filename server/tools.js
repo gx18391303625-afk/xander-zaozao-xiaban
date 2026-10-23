@@ -1,0 +1,367 @@
+// 暴露给 AI 的全部工具。原则：
+// 1. 读数据、算数、写本地档案可以直接用；
+// 2. 改亚马逊的东西只能走 prepare → 用户批准 → execute → verify；
+// 3. 开关只能看不能拨（拨开关的工具故意不提供）。
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadConfig, getStore } from '../lib/config.js';
+import { p, homeDir, ensureHome } from '../lib/paths.js';
+import { backendLabel, getSecret } from '../lib/secrets.js';
+import { spapi, getListing, requestReport, collectReport } from '../lib/spapi.js';
+import { listProfiles, listEntities, requestAdsReport, collectAdsReport, ENTITIES } from '../lib/ads.js';
+import * as archive from '../lib/archive.js';
+import * as calc from '../lib/calc.js';
+import { listSwitches } from '../lib/switches.js';
+import { prepareChange, executeChange, verifyChange, listProposals, changeLog } from '../lib/proposals.js';
+import { OPS } from '../lib/ops.js';
+import * as ziniao from '../lib/ziniao.js';
+import { isOn } from '../lib/switches.js';
+import { accessToken } from '../lib/lwa.js';
+import { marketplaceById, marketplace as mpOf } from '../lib/regions.js';
+
+const MAX_INLINE = 60_000;
+
+// 结果太大时存成文件，只回传路径和开头部分，避免撑爆对话
+function out(obj, label = 'result') {
+  const text = JSON.stringify(obj, null, 2);
+  if (text.length <= MAX_INLINE) return text;
+  ensureHome();
+  const f = p('exports', `${label}-${Date.now()}.json`);
+  fs.writeFileSync(f, text, { mode: 0o600 });
+  return JSON.stringify({
+    savedTo: f, bytes: text.length,
+    note: '数据较大，完整内容已保存到本地文件。请用代码读取该文件计算，不要只看下面的开头部分下结论。',
+    head: text.slice(0, 8000),
+  }, null, 2);
+}
+
+const S = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false });
+const str = (d) => ({ type: 'string', description: d });
+const num = (d) => ({ type: 'number', description: d });
+const bool = (d) => ({ type: 'boolean', description: d });
+const store = str('店铺别名（只接了一个店铺时可省略）');
+const mkt = str('站点代码，如 US、UK、DE、JP（省略则用店铺默认站点）');
+const READ = { readOnlyHint: true, openWorldHint: true };
+const LOCAL_READ = { readOnlyHint: true, openWorldHint: false };
+const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+
+const REPORT_PRESETS = {
+  sp_campaigns: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'campaignStatus', 'campaignBudgetAmount', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d', 'unitsSoldClicks7d'] },
+  sp_search_terms: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spSearchTerm', groupBy: ['searchTerm'], columns: ['date', 'campaignId', 'adGroupId', 'keywordId', 'keyword', 'matchType', 'searchTerm', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'] },
+  sp_targeting: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spTargeting', groupBy: ['targeting'], columns: ['date', 'campaignId', 'adGroupId', 'keywordId', 'targeting', 'keywordType', 'matchType', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'] },
+  sp_advertised_product: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spAdvertisedProduct', groupBy: ['advertiser'], columns: ['date', 'campaignId', 'adGroupId', 'advertisedAsin', 'advertisedSku', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d', 'unitsSoldClicks7d'] },
+  sb_campaigns: { adProduct: 'SPONSORED_BRANDS', reportTypeId: 'sbCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'purchases', 'sales'] },
+  sd_campaigns: { adProduct: 'SPONSORED_DISPLAY', reportTypeId: 'sdCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'purchases', 'sales'] },
+};
+
+export function buildTools(version) {
+  return [
+    // ---------------- 状态 ----------------
+    {
+      name: 'xander_status',
+      description: '查看本插件状态：已接入的店铺、各连接是否配置、开关哪些打开、设置、数据目录。每次会话开始先调用一次；check=true 时会实际联网测试令牌。',
+      inputSchema: S({ check: bool('是否联网测试每个连接（会花几秒）') }),
+      annotations: LOCAL_READ,
+      async handler({ check }) {
+        const cfg = loadConfig();
+        const stores = {};
+        for (const [alias, s] of Object.entries(cfg.stores)) {
+          const sp = !!getSecret(`spapi:${alias}`);
+          const ad = !!getSecret(`ads:${alias}`);
+          const row = { region: s.region, sellerId: s.sellerId || null, marketplaces: s.marketplaces, defaultMarketplace: s.defaultMarketplace,
+            sellerApi: sp ? '已配置' : '未接入', adsApi: ad ? '已配置' : '未接入', adsProfiles: s.ads?.profiles || {} };
+          if (check) {
+            if (sp) row.sellerApiCheck = await accessToken(getSecret(`spapi:${alias}`), s.region).then(() => 'OK').catch((e) => e.message);
+            if (ad) row.adsApiCheck = await accessToken(getSecret(`ads:${alias}`), s.region).then(() => 'OK').catch((e) => e.message);
+          }
+          stores[alias] = row;
+        }
+        const sw = listSwitches();
+        return out({
+          version, dataDir: homeDir(), secretStore: backendLabel(), stores,
+          switchesOn: sw.items.filter((x) => x.on).map((x) => `${x.id}（${x.label}）`),
+          safetyLimits: sw.limits, settings: cfg.settings,
+          ziniao: { configured: !!cfg.ziniao?.enabled, controlSwitchOn: isOn('ziniao.control') },
+          cloudBackup: cfg.sync?.enabled ? `S3：${cfg.sync.bucket}` : '未开启',
+          sellerSprite: '卖家精灵 MCP 由用户在宿主（Claude/Codex）里单独连接；若工具列表里有它的工具即可使用。',
+          hint: Object.keys(stores).length ? null : '还没接入店铺：请引导用户在终端运行 `xander setup`（见 xander-operations/references/setup-guide.md）。',
+        });
+      },
+    },
+
+    // ---------------- 卖家接口（只读） ----------------
+    {
+      name: 'xander_spapi_get',
+      description: '只读调用亚马逊卖家接口（SP-API）的任意 GET 路径，例如 /fba/inventory/v1/summaries、/orders/v0/orders、/catalog/2022-04-01/items/{asin}、/sellers/v1/marketplaceParticipations。query 里的 marketplaceIds 可用站点代码自动换算。分页请按返回的 nextToken 继续调用。',
+      inputSchema: S({ store, path: str('以 / 开头的接口路径'), query: { type: 'object', description: '查询参数', additionalProperties: true }, marketplace: mkt }, ['path']),
+      annotations: READ,
+      async handler({ store: alias, path: apiPath, query = {}, marketplace }) {
+        if (!apiPath?.startsWith('/')) throw new Error('path 必须以 / 开头');
+        const s = getStore(alias);
+        const q = { ...query };
+        const code = marketplace || s.defaultMarketplace;
+        // 常用接口自动补上站点参数
+        if (code && !q.marketplaceIds && !q.MarketplaceIds) {
+          if (apiPath.startsWith('/fba/inventory')) {
+            q.granularityType ||= 'Marketplace'; q.granularityId ||= mpOf(code).id; q.marketplaceIds = mpOf(code).id;
+          } else if (/^\/(orders|catalog|listings|sales|products\/pricing|finances\/2024)/.test(apiPath)) {
+            q.marketplaceIds = mpOf(code).id;
+          }
+        }
+        const data = await spapi(s.alias, 'GET', apiPath, { query: q });
+        return out({ path: apiPath, query: q, fetchedAt: new Date().toISOString(), data }, 'spapi');
+      },
+    },
+    {
+      name: 'xander_listing_get',
+      description: '读取一个 SKU 的 Listing（标题、五点、属性、问题、报价、配送渠道库存）。',
+      inputSchema: S({ store, sku: str('卖家 SKU'), marketplace: mkt }, ['sku']),
+      annotations: READ,
+      async handler({ store: alias, sku, marketplace }) {
+        return out(await getListing(getStore(alias).alias, sku, marketplace), 'listing');
+      },
+    },
+    {
+      name: 'xander_spapi_report',
+      description: '卖家报表（异步）。action=request 申请（12 小时内同参数自动复用，避免限流），action=collect 查询并下载到本地文件。常用 reportType：GET_SALES_AND_TRAFFIC_REPORT、GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA、GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL、GET_MERCHANT_LISTINGS_ALL_DATA、GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT。生成中不等于没数据，不要当 0。',
+      inputSchema: S({
+        store, action: { type: 'string', enum: ['request', 'collect'] }, reportType: str('报表类型'),
+        marketplaces: { type: 'array', items: { type: 'string' }, description: '站点代码数组' },
+        dataStartTime: str('ISO 时间，如 2026-10-01T00:00:00Z'), dataEndTime: str('ISO 时间'),
+        reportOptions: { type: 'object', additionalProperties: true, description: '报表选项（如 SQP 的 reportPeriod、asin）' },
+        reportId: str('collect 时必填'),
+      }, ['action']),
+      annotations: READ,
+      async handler(a) {
+        if (a.action === 'request') {
+          if (!a.reportType) throw new Error('request 需要 reportType');
+          return out(await requestReport(a.store, a));
+        }
+        if (!a.reportId) throw new Error('collect 需要 reportId');
+        return out(await collectReport(a.store, a.reportId), 'report');
+      },
+    },
+
+    // ---------------- 广告接口（只读） ----------------
+    {
+      name: 'xander_ads_profiles',
+      description: '列出广告账户下的 profile（每个站点一个），用于核对店铺绑定是否正确。',
+      inputSchema: S({ store }),
+      annotations: READ,
+      async handler({ store: alias }) {
+        const s = getStore(alias);
+        const list = await listProfiles(s.alias);
+        return out(list.map((x) => ({ profileId: x.profileId, countryCode: x.countryCode, currency: x.currencyCode, type: x.accountInfo?.type, name: x.accountInfo?.name, marketplace: marketplaceById(x.accountInfo?.marketplaceStringId)?.code })));
+      },
+    },
+    {
+      name: 'xander_ads_list',
+      description: `读取广告对象列表（自动翻页）。entity 可选：${Object.keys(ENTITIES).join('、')}。filters 原样传给亚马逊，例如 {"stateFilter":{"include":["ENABLED","PAUSED"]}}、{"campaignIdFilter":{"include":["123"]}}；SD 用 {"stateFilter":"enabled,paused"}。`,
+      inputSchema: S({ store, entity: { type: 'string', enum: Object.keys(ENTITIES) }, marketplace: mkt, filters: { type: 'object', additionalProperties: true }, maxPages: num('最多翻几页，默认 20') }, ['entity']),
+      annotations: READ,
+      async handler({ store: alias, entity, marketplace, filters, maxPages }) {
+        const s = getStore(alias);
+        const r = await listEntities(s.alias, entity, { marketplace, filters, maxPages });
+        return out({ ...r, note: r.complete ? null : '没翻完所有页（达到 maxPages），数据不完整。' }, `ads-${entity}`);
+      },
+    },
+    {
+      name: 'xander_ads_report',
+      description: `广告报表 v3（异步）。action=request 申请（可用 preset：${Object.keys(REPORT_PRESETS).join('、')}，或自己传 configuration），action=collect 查询并下载到本地文件。报表最长 31 天/次；生成中不等于 0；SD 没有搜索词报表。`,
+      inputSchema: S({
+        store, action: { type: 'string', enum: ['request', 'collect'] }, marketplace: mkt,
+        preset: { type: 'string', enum: Object.keys(REPORT_PRESETS) },
+        startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD'),
+        configuration: { type: 'object', additionalProperties: true, description: '完整 configuration（不用 preset 时）' },
+        reportId: str('collect 时必填'),
+      }, ['action']),
+      annotations: READ,
+      async handler(a) {
+        const s = getStore(a.store);
+        if (a.action === 'request') {
+          const configuration = a.configuration || (a.preset ? { ...REPORT_PRESETS[a.preset], timeUnit: 'DAILY', format: 'GZIP_JSON' } : null);
+          if (!configuration) throw new Error('需要 preset 或 configuration');
+          if (!a.startDate || !a.endDate) throw new Error('需要 startDate 和 endDate');
+          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, configuration }));
+        }
+        if (!a.reportId) throw new Error('collect 需要 reportId');
+        return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
+      },
+    },
+
+    // ---------------- 档案库（本地） ----------------
+    {
+      name: 'xander_archive_overview',
+      description: '读取店铺档案：不传 sku 看店铺级事实和产品清单；传 sku 看该产品当前有效的成本/箱规/交期等事实和未完成待办。做利润、补货、广告经济前先读这里，已有的信息不要再问用户。',
+      inputSchema: S({ store, sku: str('可选') }),
+      annotations: LOCAL_READ,
+      async handler({ store: alias, sku }) {
+        const s = getStore(alias);
+        return out({ ...archive.overview(s.alias, sku || null), standardFields: sku ? undefined : archive.STANDARD_FIELDS });
+      },
+    },
+    {
+      name: 'xander_archive_set_fact',
+      description: `往档案里记一条事实（只能记用户明确确认过的）。推荐字段：${Object.keys(archive.STANDARD_FIELDS).join('、')}。旧值不会被删除，会自动进入历史。必须写清 source；必须 userConfirmed=true。`,
+      inputSchema: S({
+        store, sku: str('产品级事实填 SKU；店铺级事实不填'), field: str('字段名'), value: str('值（统一用字符串）'),
+        unit: str('单位，如 件、天、kg'), currency: str('币种，如 CNY、USD'), effective_from: str('生效日期 YYYY-MM-DD，默认今天'),
+        source: str('来源，如“用户口述 2026-10-22”“工厂报价单 PI-123”'), note: str('备注'),
+        userConfirmed: bool('用户已经明确确认这条信息'),
+      }, ['field', 'value', 'source', 'userConfirmed']),
+      annotations: LOCAL_WRITE,
+      async handler(a) {
+        if (a.userConfirmed !== true) throw new Error('只能记录用户明确确认过的信息。先跟用户核对再记。');
+        const s = getStore(a.store);
+        return archive.setFact(s.alias, a);
+      },
+    },
+    {
+      name: 'xander_archive_product',
+      description: '在档案里登记/更新一个产品（SKU 与 ASIN、标题、变体的对应关系）。',
+      inputSchema: S({ store, sku: str('SKU'), asin: str('ASIN'), parent_asin: str('父 ASIN'), title: str('简称'), variant: str('颜色/尺寸等'), marketplace: mkt, note: str('备注') }, ['sku']),
+      annotations: LOCAL_WRITE,
+      async handler(a) {
+        const s = getStore(a.store);
+        return archive.upsertProduct(s.alias, a);
+      },
+    },
+    {
+      name: 'xander_archive_history',
+      description: '查某个字段（或某个产品全部字段）的历史值，例如采购价什么时候从多少改成多少。',
+      inputSchema: S({ store, sku: str('可选'), field: str('可选') }),
+      annotations: LOCAL_READ,
+      async handler({ store: alias, sku, field }) {
+        const s = getStore(alias);
+        return out(archive.history(s.alias, sku || null, field || null));
+      },
+    },
+    {
+      name: 'xander_archive_note',
+      description: '记录决策、待办或进度（action=add），或把待办标记完成（action=done）。交接时把结论、待办和下一步记在这里。',
+      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: num('done 时的待办编号') }, ['action']),
+      annotations: LOCAL_WRITE,
+      async handler(a) {
+        if (a.action === 'done') return archive.completeNote(a.id);
+        const s = getStore(a.store);
+        return archive.addNote(s.alias, a);
+      },
+    },
+    {
+      name: 'xander_archive_import_csv',
+      description: '从用户的 CSV 成本表批量导入档案。支持长表（sku,field,value,...）或宽表（sku,purchase_cost,first_leg_cost,...）。先 dryRun=true 预览给用户确认，再正式导入。',
+      inputSchema: S({ store, file: str('CSV 文件的完整路径'), source: str('来源说明'), dryRun: bool('只预览不写入') }, ['file']),
+      annotations: LOCAL_WRITE,
+      async handler(a) {
+        const s = getStore(a.store);
+        if (!fs.existsSync(a.file)) throw new Error(`找不到文件：${a.file}`);
+        return archive.importCsv(s.alias, path.resolve(a.file), { defaultSource: a.source, dryRun: a.dryRun === true });
+      },
+    },
+
+    // ---------------- 计算器 ----------------
+    {
+      name: 'xander_calc_ad_economics',
+      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC。缺核心输入会返回 INCOMPLETE 和缺口，不拿 0 凑。金额用站点币种的普通数字。',
+      inputSchema: S({
+        price: num('售价'), referralFeePct: num('佣金比例，如 15'), fbaFee: num('FBA 配送费'), purchaseCost: num('采购成本（同币种）'),
+        firstLegCost: num('头程（同币种）'), otherUnitCost: num('其他单件成本'), returnsCostPerUnit: num('退货损耗/件'),
+        vatPct: num('含税站点的增值税率，如 20（美国不填）'), targetProfitPerUnit: num('目标每件利润'), targetMarginPct: num('目标利润率%'), cvrPct: num('广告转化率%'),
+      }),
+      annotations: LOCAL_READ,
+      async handler(a) { return calc.adEconomics(a); },
+    },
+    {
+      name: 'xander_calc_replenishment',
+      description: '算补货：续航天数、断货日、按情景（默认 0.8/1/1.2 倍需求）的建议件数和整箱数。在途必须给 availableInDays（几天后可售），没有就不计入。',
+      inputSchema: S({
+        rows: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{sku, dailySales, sellable, inbound:[{qty, availableInDays}], leadTimeDays, safetyDays, coverDays, casePack, moq, unitCost}' } },
+        scenarios: { type: 'array', items: { type: 'number' } },
+      }, ['rows']),
+      annotations: LOCAL_READ,
+      async handler(a) { return calc.replenishment(a); },
+    },
+    {
+      name: 'xander_calc_profit',
+      description: '利润桥：逐项列收入/费用/广告/售出成本，标记 INCLUDED/NETTED/EXTRA_PAID/ESTIMATED/UNKNOWN/USER_EXCLUDED。缺核心项时只给“已知收支小计”，不叫利润。',
+      inputSchema: S({
+        currency: str('币种'),
+        items: { type: 'array', items: { type: 'object', additionalProperties: true, description: '{name, amount(正数), category: revenue|fee|ads|cogs|refund|other, status}' } },
+      }, ['items']),
+      annotations: LOCAL_READ,
+      async handler(a) { return calc.profitBridge(a); },
+    },
+
+    // ---------------- 写入：开关、提案、执行、回读 ----------------
+    {
+      name: 'xander_switches',
+      description: '查看写入开关（只读）。每项写入能力都有一个开关，默认全关；只有用户本人能在开关面板（终端运行 `xander panel`）里打开。AI 不能、也不要尝试替用户打开。',
+      inputSchema: S({}),
+      annotations: LOCAL_READ,
+      async handler() {
+        const sw = listSwitches();
+        return out({
+          ...sw,
+          operations: OPS.map((o) => ({ op: o.id, label: o.label, params: o.params })),
+          howToTurnOn: '请用户在终端运行 `xander panel` 打开本地开关面板，自己点开需要的开关。',
+        });
+      },
+    },
+    {
+      name: 'xander_prepare_change',
+      description: '为亚马逊改动生成精确提案（只读，不改任何东西）：读取当前值、检查安全上限、Listing 会先做亚马逊预校验，返回提案编号、哈希和新旧值对照表。changes 每项格式见 xander_switches 的 operations，例如 {"op":"ads.sp.keyword.bid","keywordId":"123","value":0.85,"reason":"..."}。',
+      inputSchema: S({
+        store, marketplace: mkt, note: str('这次改动的目的'),
+        changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      }, ['changes']),
+      annotations: READ,
+      async handler(a) { return out(await prepareChange(a)); },
+    },
+    {
+      name: 'xander_execute_change',
+      description: '执行一个已被用户明确批准的提案（只执行一次）。要求：用户在对话里明确批准了这一份提案；相关开关已由用户打开；提案未过期；哈希一致。执行后会自动回读。结果为 OUTCOME_UNKNOWN 时绝不能重发，只能用 xander_verify_change 查。',
+      inputSchema: S({ proposalId: str('提案编号'), hash: str('提案哈希'), approved: bool('用户已明确批准这份提案') }, ['proposalId', 'hash', 'approved']),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+      async handler(a) { return out(await executeChange(a)); },
+    },
+    {
+      name: 'xander_verify_change',
+      description: '重新回读一个已执行提案的结果（Listing 改动常有延迟；OUTCOME_UNKNOWN 必须用它查清楚）。只读。',
+      inputSchema: S({ proposalId: str('提案编号') }, ['proposalId']),
+      annotations: READ,
+      async handler(a) { return out(await verifyChange(a)); },
+    },
+    {
+      name: 'xander_change_log',
+      description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。',
+      inputSchema: S({ limit: num('条数，默认 50') }),
+      annotations: LOCAL_READ,
+      async handler({ limit = 50 }) { return out({ proposals: listProposals(20), ledger: changeLog(limit) }); },
+    },
+
+    // ---------------- 紫鸟（实验） ----------------
+    {
+      name: 'xander_ziniao_status',
+      description: '查看紫鸟浏览器是否配置、能否连上、店铺列表，以及“紫鸟控制”开关状态。',
+      inputSchema: S({}),
+      annotations: LOCAL_READ,
+      async handler() { return out(await ziniao.status()); },
+    },
+    {
+      name: 'xander_ziniao_snapshot',
+      description: '（需要用户打开“紫鸟控制”开关）用紫鸟打开指定店铺浏览器，可选跳转到亚马逊后台某个网址，读取页面标题和文字。只读，不点击任何东西。只在官方接口做不到时使用。',
+      inputSchema: S({ browserId: str('紫鸟店铺 ID（从 xander_ziniao_status 获取）'), url: str('可选：亚马逊后台网址') }, ['browserId']),
+      annotations: READ,
+      async handler({ browserId, url }) {
+        if (!isOn('ziniao.control')) throw new Error('“紫鸟控制”开关是关着的。请用户在开关面板里打开后再试（AI 不能代开）。');
+        return out(await ziniao.snapshot(browserId, url), 'ziniao');
+      },
+    },
+  ];
+}
+
+export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊运营本地工具。
+- 会话开始先调 xander_status。所有数据只在用户本机。
+- 读数据、计算、记本地档案可直接做；改亚马逊必须：xander_prepare_change → 把表格给用户看并取得明确批准 → xander_execute_change → 结果核对。
+- 写入开关默认全关，只有用户能在 \`xander panel\` 打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
+- 未知数据保持未知，不当 0；模拟结果标注 SIMULATED。`;

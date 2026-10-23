@@ -1,0 +1,4 @@
+interface:
+  display_name: "Amazon Listing Writer"
+  short_description: "按需撰写、改写或审计亚马逊 Listing 与 Search Terms"
+  default_prompt: "使用 $write-amazon-listing 按本次请求选择 Create、Rewrite、Audit、Post-change、Search Terms 或 Stage 3 模式，保留已有内容锁定边界，只交付该模式需要的结果。"

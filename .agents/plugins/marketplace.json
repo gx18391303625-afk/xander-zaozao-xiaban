@@ -1,0 +1,20 @@
+{
+  "name": "xander-zaozao",
+  "interface": {
+    "displayName": "Xander 早早下班"
+  },
+  "plugins": [
+    {
+      "name": "xander-zaozao-xiaban",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

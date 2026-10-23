@@ -1,0 +1,7 @@
+interface:
+  display_name: "亚马逊关键词词库"
+  short_description: "构建可追溯的大盘与竞品词库，或定向核验自然位、广告展示与同屏证据"
+  default_prompt: "使用 $build-amazon-keyword-library 按本次范围建立或刷新词库，或只核验指定关键词的自然位、广告展示与同屏证据；保留来源日期、原始范围和既有角色，完整建库才交付中文 Excel 与 Listing 交接，不输出广告出价预算或 Listing 成稿。"
+
+policy:
+  allow_implicit_invocation: true
