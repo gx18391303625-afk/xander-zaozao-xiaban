@@ -40,7 +40,9 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 2. 把返回的新旧值表格**完整**给用户看，等用户对**这一份**提案明确说“批准/执行”。“帮我优化一下”“可以试试”不算批准。
 3. 相关开关没开：告诉用户在终端运行 `xander panel` 自己打开。**你不能替用户开开关，不能改开关文件，不能运行 `xander switch on`。**
 4. `xander_execute_change`（只执行一次）→ 看回读结果。`OUTCOME_UNKNOWN` 绝不重发，只能 `xander_verify_change` 查清楚。
-5. 官方接口做不到时，才考虑紫鸟浏览器，见 [ziniao-fallback.md](references/ziniao-fallback.md)。
+5. 新建广告、广告位加价、预算规则/投资组合、图片、A+、优惠券按 [2.3 功能使用说明](../../docs/v2.3-features.md) 的真实范围执行。先用 `xander_switches` 查看参数和能力限制。
+6. 官方接口做不到时，可交接给用户手动操作或宿主提供的 GPT 电脑/浏览器操控；不得假设宿主有工具，不强依赖紫鸟。前台操作需先与用户协调。紫鸟仅作为可选路径，见 [ziniao-fallback.md](references/ziniao-fallback.md)。
+7. 优惠券的 `HANDOFF_READY` 只表示准备就绪，未提交；A+ 草稿、ASIN 关联、已提交审核、审核通过和当前版本发布是不同结果。创建超时、部分成功或进程中断只核验，不自动续跑或换提案重提。
 
 ## 收尾
 

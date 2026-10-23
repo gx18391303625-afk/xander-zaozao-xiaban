@@ -94,7 +94,7 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   <header>
     <div class="logo">早</div>
     <div>
-      <h1>早早下班 · 写入开关面板</h1>
+      <h1>早早下班 · 写入开关面板 <span class="sub" id="version"></span></h1>
       <div class="sub">开着的灯 = 允许 AI 在你批准后执行这一类改动。关着的灯，AI 连提案都执行不了。</div>
     </div>
     <div class="spacer"></div>
@@ -105,7 +105,7 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
 
   <div class="grid">
     <section class="card">
-      <h2>官方接口写入开关</h2>
+      <h2>功能与写入开关</h2>
       <p class="hint">全部默认关闭。建议只开你现在要用的那几项，用完关掉。“Beta”表示按官方文档实现、还没在大量真实账户上验证过，第一次用建议先开演练模式。</p>
       <div class="bar">
         <button class="primary" id="allOn">一键全开</button>
@@ -164,7 +164,7 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
 <dialog id="dlg">
   <form method="dialog">
     <h2 style="margin-top:0">一键全开？</h2>
-    <p>这会打开所有已实现的官方写入开关（不包括紫鸟）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
+    <p>这会打开所有已实现的官方 API 写入开关（不包括紫鸟和网页交接）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
     <label class="check"><input type="checkbox" id="understand"> 我明白：每次执行前我都会认真看提案里的新旧值。</label>
     <div class="actions">
       <button value="cancel">取消</button>
@@ -180,6 +180,7 @@ const $ = (id) => document.getElementById(id);
 let S = null;
 
 const STATUS_CN = { PROPOSED: '待批准', EXECUTING: '执行中', API_STATE_VERIFIED: '已生效（接口回读一致）', AWAITING_READBACK: '已提交待核对', MISMATCH: '回读不一致', FAILED: '失败', OUTCOME_UNKNOWN: '结果未知', SKIPPED_STALE: '原值已变，已跳过', DRY_RUN: '演练', EXPIRED: '已过期', REJECTED: '已拒绝' };
+Object.assign(STATUS_CN, { SUBMITTING: '提交中，禁止重发', SUBMITTED: '已提交待回读', NOT_RUN: '未执行', PARTIALLY_SUCCEEDED: '部分完成，请核验', IMAGES_ACCEPTED: '图片贡献已接受', IMAGE_CONTRIBUTION_VERIFIED: '图片贡献已回读，页面待核验', DRAFT_CREATED: 'A+ 草稿已创建', CONTENT_UPDATED: 'A+ 内容已更新', ASINS_ASSOCIATED: 'ASIN 关联已核对', SUBMITTED_FOR_REVIEW: '已提交审核', APPROVED: '审核通过，发布待核验', PUBLISH_RECORD_FOUND: '发现发布记录，当前版本待核验', HANDOFF_READY: '资料就绪，需网页提交', PLATFORM_STATUS_OBSERVED: '已读平台状态，完整提案待核验' });
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
 function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
@@ -198,13 +199,14 @@ function rowHtml(it) {
   const planned = !it.implemented;
   return `<div class="row ${planned ? 'planned' : ''}">
     <span class="lamp ${it.on ? 'on' : ''}"></span>
-    <div class="label"><div class="name">${esc(it.label)}${planned ? '<span class="tag beta">规划中</span>' : riskTag(it.risk)}${it.beta ? '<span class="tag beta">Beta</span>' : ''}</div>
-      <div class="meta">${esc(it.id)}${it.changedAt ? ' · 上次切换 ' + new Date(it.changedAt).toLocaleString() : ''}</div></div>
+    <div class="label"><div class="name">${esc(it.label)}${planned ? '<span class="tag beta">规划中</span>' : riskTag(it.risk)}${it.capability === 'handoff' ? '<span class="tag beta">需网页提交</span>' : ''}${it.beta ? '<span class="tag beta">Beta</span>' : ''}</div>
+      <div class="meta">${esc(it.id)}${it.changedAt ? ' · 上次切换 ' + new Date(it.changedAt).toLocaleString() : ''}</div>${it.limitation ? '<div class="meta">' + esc(it.limitation) + '</div>' : ''}${it.requirements ? '<div class="meta">' + esc(it.requirements) + '</div>' : ''}</div>
     <label class="switch" title="${planned ? '还没实现' : (it.on ? '点击关闭' : '点击打开')}"><input type="checkbox" data-id="${esc(it.id)}" ${it.on ? 'checked' : ''} ${planned ? 'disabled' : ''} aria-label="${esc(it.label)}"><span></span></label>
   </div>`;
 }
 
 function render() {
+  $('version').textContent = `v${S.version}`;
   const items = S.switches.items;
   const normal = items.filter((x) => !x.special);
   const groups = [...new Set(normal.map((x) => x.group))];
@@ -221,7 +223,7 @@ function render() {
       <div class="head"><code>${esc(p.id)}</code><span class="status ${esc(p.status)}">${esc(STATUS_CN[p.status] || p.status)}</span>
         ${p.panelApproved && p.status === 'PROPOSED' ? '<span class="status API_STATE_VERIFIED">面板已批准</span>' : ''}
         <span class="sub">${esc(p.store)} · ${new Date(p.createdAt).toLocaleString()}</span></div>
-      <ul>${p.items.map((i) => `<li>${esc(i.label)}：${esc(i.old)} → <b>${esc(i.new)}</b> <span class="sub">${esc(JSON.stringify(i.target))}${i.status ? ' · ' + esc(STATUS_CN[i.status] || i.status) : ''}</span></li>`).join('')}</ul>
+      <ul>${p.items.map((i) => `<li>${esc(i.label)}：${esc(i.old)} → <b>${esc(i.new)}</b> <span class="sub">${esc(JSON.stringify(i.target))}${i.status ? ' · ' + esc(STATUS_CN[i.status] || i.status) : ''}</span>${(i.warnings || []).map((w) => '<p class="hint">' + esc(w) + '</p>').join('')}</li>`).join('')}</ul>
       ${p.status === 'PROPOSED' && !p.panelApproved && Date.parse(p.expiresAt) > Date.now() ? `<div class="bar"><button class="ok" data-approve="${esc(p.id)}">批准</button><button class="ghost" data-reject="${esc(p.id)}">拒绝</button></div>` : ''}
     </div>`).join('') : '<p class="empty">还没有提案。</p>';
 
@@ -245,7 +247,7 @@ document.addEventListener('click', (e) => {
 });
 $('allOff').onclick = () => act('/api/all', { on: false }, '已全部关闭');
 $('allOn').onclick = () => { $('understand').checked = false; $('dlgOk').disabled = true; $('dlg').showModal(); };
-$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（紫鸟除外）'); });
+$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（紫鸟与网页交接除外）'); });
 $('saveLimits').onclick = () => act('/api/limits', Object.fromEntries(['bidChangePctMax', 'budgetChangePctMax', 'priceChangePctMax', 'maxChangesPerProposal'].map((k) => [k, Number($(k).value)])), '上限已保存');
 
 if (!token) showErr('缺少口令：请用终端里 `xander panel` 打印的完整网址打开。');

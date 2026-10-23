@@ -13,7 +13,9 @@ import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
 import * as calc from '../lib/calc.js';
 import { listSwitches } from '../lib/switches.js';
-import { prepareChange, executeChange, verifyChange, listProposals, changeLog } from '../lib/proposals.js';
+import { prepareChange, executeChange, verifyChange, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
+import { readPromotions } from '../lib/promotions.js';
+import { getListingImageRequirements, listAplusDocuments, validateAplusContent, getAplusStatus } from '../lib/ops-content.js';
 import { OPS } from '../lib/ops.js';
 import * as ziniao from '../lib/ziniao.js';
 import { isOn } from '../lib/switches.js';
@@ -291,6 +293,34 @@ export function buildTools(version) {
       async handler(a) { return calc.profitBridge(a); },
     },
 
+    // ---------------- 内容和促销的资格/状态查询（不提交业务改动） ----------------
+    {
+      name: 'xander_content_check',
+      description: '图片/A+ 官方要求与状态查询。imageRequirements 读取该SKU实时商品类型定义；listAplus 分页列文档；validateAplus 校验内容和可选ASIN资格（不创建或提交）；aplusStatus 返回审核及发布记录，记录不含版本时不能宣称本次修订已发布。',
+      inputSchema: S({ store, marketplace: mkt, action: { type: 'string', enum: ['imageRequirements', 'listAplus', 'validateAplus', 'aplusStatus'] }, sku: str('SKU'), contentReferenceKey: str('A+文档ID'), contentDocument: { type: 'object', additionalProperties: true }, asinSet: { type: 'array', items: { type: 'string' } } }, ['action']),
+      annotations: READ,
+      async handler(a) {
+        const s = getStore(a.store);
+        const fn = { imageRequirements: getListingImageRequirements, listAplus: listAplusDocuments, validateAplus: validateAplusContent, aplusStatus: getAplusStatus }[a.action];
+        if (!fn) throw new Error('不支持的action');
+        return out(await fn(s, a), 'content-check');
+      },
+    },
+    {
+      name: 'xander_promotions',
+      description: '官方 Promotions v2025-12-01 只读查询：search 搜索（分页 nextToken 传 query.paginationToken）；get 详情/问题/版本；selection 商品明细（query.revisionId 必填，使用详情中 selection.revisionId；可 includedData:[ISSUES]）。官方暂无促销创建或修改接口，不能用它提交优惠券。',
+      inputSchema: S({ store, marketplace: mkt, action: { type: 'string', enum: ['search', 'get', 'selection'] }, promotionId: str('促销ID'), selectionId: str('商品选择ID'), query: { type: 'object', additionalProperties: true } }),
+      annotations: READ,
+      async handler(a) { return out(await readPromotions(getStore(a.store), a), 'promotions'); },
+    },
+    {
+      name: 'xander_record_promotion_receipt',
+      description: '网页操作后，把操作者提供的 promotionId 关联到已批准并生成交接包的促销提案，随后只读查询官方状态。不会提交/重提促销，不把回执输入当作成功证明。',
+      inputSchema: S({ proposalId: str('提案编号'), hash: str('提案哈希'), itemIndex: num('提案内的零起始项序号，默认0'), promotionId: str('平台返回的promotionId') }, ['proposalId', 'hash', 'promotionId']),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      async handler(a) { return out(await recordPromotionReceipt(a)); },
+    },
+
     // ---------------- 写入：开关、提案、执行、回读 ----------------
     {
       name: 'xander_switches',
@@ -301,7 +331,7 @@ export function buildTools(version) {
         const sw = listSwitches();
         return out({
           ...sw,
-          operations: OPS.map((o) => ({ op: o.id, label: o.label, params: o.params })),
+          operations: OPS.map((o) => ({ op: o.id, label: o.label, params: o.params, capability: o.capability || 'api', requirements: o.requirements, limitation: o.limitation })),
           howToTurnOn: '请用户在终端运行 `xander panel` 打开本地开关面板，自己点开需要的开关。',
         });
       },
@@ -363,4 +393,7 @@ export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊
 - 会话开始先调 xander_status。所有数据只在用户本机。
 - 读数据、计算、记本地档案可直接做；改亚马逊必须：xander_prepare_change → 把表格给用户看并取得明确批准 → xander_execute_change → 结果核对。
 - 写入开关默认全关，只有用户能在 \`xander panel\` 打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
+- 新建对象默认暂停；多步创建可能部分成功。未知结果只核验，不能换提案重提。
+- 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。
+- 优惠券只有准备、网页交接与官方只读查询。HANDOFF_READY不代表已提交。宿主电脑操控仅在有工具且用户允许前台操作时使用，不强依赖紫鸟。
 - 未知数据保持未知，不当 0；模拟结果标注 SIMULATED。`;

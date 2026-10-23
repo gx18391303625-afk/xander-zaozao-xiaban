@@ -97,11 +97,11 @@ test('提交时服务端 503（其实已生效）→ 结果未知 → 回读确�
   assert.equal(puts.length, 1, '写请求只能发一次，不能自动重发');
 });
 
-test('提交时 503（没生效）→ 回读仍是原值 → 判定失败', async () => {
+test('提交时 503 → 暂读到原值仍保留未知，不能据此重发', async () => {
   const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.5 }] });
   mock.state.mode.targetUpdate = '503-not-applied';
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
-  assert.equal(r.status, 'FAILED');
+  assert.equal(r.status, 'OUTCOME_UNKNOWN');
   assert.equal(mock.state.targets['111'].bid.bid, 1.4);
 });
 
