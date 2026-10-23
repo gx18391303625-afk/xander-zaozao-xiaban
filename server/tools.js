@@ -111,7 +111,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_listing_get',
-      description: '读取一个 SKU 的 Listing（标题、五点、属性、问题、报价、配送渠道库存）。',
+      description: '只读获取一个 SKU 的 Listing（标题、Item Highlights 亮点、五点、属性、问题、报价、配送渠道库存）。亮点原值在 attributes.title_differentiation，与标题 item_name 分开；属性保留 marketplace_id 和 language_tag，可独立读取而不生成改动提案。',
       inputSchema: S({ store, sku: str('卖家 SKU'), marketplace: mkt }, ['sku']),
       annotations: READ,
       async handler({ store: alias, sku, marketplace }) {
@@ -338,7 +338,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_prepare_change',
-      description: '为亚马逊改动生成精确提案（只读，不改任何东西）：读取当前值、检查安全上限、Listing 会先做亚马逊预校验，返回提案编号、哈希和新旧值对照表。changes 每项格式见 xander_switches 的 operations，例如 {"op":"ads.sp.target.bid","targetId":"123","value":0.85,"reason":"..."}。',
+      description: '为亚马逊改动生成本地精确提案，不正式提交亚马逊：读取当前值、检查安全上限，Listing 文案做 Amazon VALIDATION_PREVIEW。listing.attribute 支持 item_name、title_differentiation（Item Highlights 亮点）、bullet_point、product_description、generic_keyword；亮点额外检查真实 PTD 的字段支持与基础结构，完整条件规则由 Amazon 预校验。languageTag 指定目标语言，保留其他站点/语言的原值。原值相同则不生成提案。返回提案编号、哈希和新旧值对照表；格式见 xander_switches 的 operations。',
       inputSchema: S({
         store, marketplace: mkt, note: str('这次改动的目的'),
         changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -348,14 +348,14 @@ export function buildTools(version) {
     },
     {
       name: 'xander_execute_change',
-      description: '执行一个已被用户明确批准的提案（只执行一次）。要求：用户在对话里明确批准了这一份提案；相关开关已由用户打开；提案未过期；哈希一致。执行后会自动回读。结果为 OUTCOME_UNKNOWN 时绝不能重发，只能用 xander_verify_change 查。',
+      description: '执行一个已被用户明确批准的提案（只执行一次）。要求：用户在对话里明确批准了这一份提案；相关开关已由用户打开；提案未过期；哈希一致；面板审批模式下还必须有该提案的面板批准。演练模式只记录 DRY_RUN，不正式提交亚马逊。正式执行后自动回读；OUTCOME_UNKNOWN 绝不能重发，只能用 xander_verify_change 查。',
       inputSchema: S({ proposalId: str('提案编号'), hash: str('提案哈希'), approved: bool('用户已明确批准这份提案') }, ['proposalId', 'hash', 'approved']),
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
       async handler(a) { return out(await executeChange(a)); },
     },
     {
       name: 'xander_verify_change',
-      description: '重新回读一个已执行提案的结果（Listing 改动常有延迟；OUTCOME_UNKNOWN 必须用它查清楚）。只读。',
+      description: '只读重新核验一个已执行提案的结果（包括 Item Highlights/title_differentiation；Listing 改动常有延迟，OUTCOME_UNKNOWN 必须用它查清楚）。演练结果不等于已提交或已生效；没有已执行提案时可用 xander_listing_get 独立读取当前属性。',
       inputSchema: S({ proposalId: str('提案编号') }, ['proposalId']),
       annotations: READ,
       async handler(a) { return out(await verifyChange(a)); },

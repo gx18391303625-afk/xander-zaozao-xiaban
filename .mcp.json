@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "xander": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/server/index.js"
+      ],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

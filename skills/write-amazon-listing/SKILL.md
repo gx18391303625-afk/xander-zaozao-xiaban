@@ -1,13 +1,14 @@
 ---
 name: write-amazon-listing
-description: "撰写、改写或审计有证据支撑的亚马逊 Listing 文案与后台搜索词（标题、五点、描述、Search Terms），包括单字段修改和发布交接；经用户批准后可通过官方接口提交。Create, rewrite, or audit evidence-based Amazon Listing copy and backend Search Terms. 不用于选品、A+、品牌旗舰店或广告策略。"
+description: "撰写、改写或审计有证据支撑的亚马逊 Listing 文案与后台搜索词（标题、Item Highlights 亮点、五点、描述、Search Terms），包括单字段修改和发布交接；经用户批准后可通过官方接口提交。Create, rewrite, or audit evidence-based Amazon Listing copy and backend Search Terms. 不用于选品、A+、品牌旗舰店或广告策略。"
 ---
 
 ## 数据与工具
 
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读该产品的已确认事实、认证和内容锁定。
-- 当前线上内容用 `xander_listing_get`（标题、五点、属性、issues、productType）。关键词证据来自关键词技能的交接或搜索查询表现报表。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
-- 提交到亚马逊：按 [写入安全](../xander-operations/references/write-safety.md)，用 `xander_prepare_change`（op=`listing.attribute`，attribute=item_name / bullet_point / product_description / generic_keyword），它会先让亚马逊做 VALIDATION_PREVIEW 预校验；用户批准这份提案后再 `xander_execute_change`。开关只有用户能开。Listing 生效常有延迟，`AWAITING_READBACK` 时稍后 `xander_verify_change`。
+- 当前线上内容用 `xander_listing_get`（标题、亮点、五点、属性、issues、productType）；Item Highlights 亮点读取 `attributes.title_differentiation`，与标题 `item_name` 分开。无需生成提案即可独立读取。关键词证据来自关键词技能的交接或搜索查询表现报表。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
+- 提交到亚马逊：按 [写入安全](../xander-operations/references/write-safety.md)，用 `xander_prepare_change`（op=`listing.attribute`，attribute=item_name / title_differentiation / bullet_point / product_description / generic_keyword）。各字段都做 Amazon `VALIDATION_PREVIEW`；亮点额外检查目标商品类型真实 PTD 的字段支持与基础结构，完整条件规则由 Amazon 预校验。是否支持取决于实际站点与商品类型，不能仅凭当前值缺失断言不支持。`languageTag` 指定目标语言，保留其他站点、语言及未授权属性。用户批准这份提案后再 `xander_execute_change`，面板审批模式还须在面板批准；开关与演练设置只有用户能改。`DRY_RUN` 只记录，不正式提交；预校验通过也不等于发布。`AWAITING_READBACK` 时稍后 `xander_verify_change`。详见 [文案属性流程](../../docs/listing-attributes.md)。
+- 与当前内容相同的变更不生成提案；如实报告“内容已一致”，不得为了演练制造文案差异，也不得当作本次修改成功。
 - 未知数字是 null，不是 0；模拟结果标 SIMULATED / NOT LIVE。
 - 脚本只在宿主能执行代码时运行（Codex、Claude Code 可以）；否则透明说明限制。用简洁中文沟通，文案用目标站点语言。
 

@@ -39,6 +39,8 @@ Do not automatically use every available character. A shorter, unambiguous title
 
 ## Item Highlights method
 
+The Amazon attribute is `title_differentiation`, separate from the title's `item_name` and from `bullet_point`. Read it through `xander_listing_get` at `attributes.title_differentiation`; submit approved copy through `listing.attribute` with `attribute: "title_differentiation"`. The release package's `item_highlight` is a copy field, not an Amazon API attribute name. Preserve the approved wording and target marketplace/language. Runtime PTD checks and Amazon validation preview determine whether the attribute can be submitted for that product type.
+
 When the target marketplace and category support Item Highlights:
 
 - follow the current verified limit;

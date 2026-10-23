@@ -15,7 +15,7 @@
 - SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）。
 - SB 品牌推广（Ads API v1）：活动开/停与日预算、投放竞价与开/停。
 - SD 展示型（Beta，暂用原 SD 接口）：活动开/停与预算、投放竞价与开/停。
-- Listing：标题/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。
+- Listing：标题/Item Highlights 亮点/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。亮点对应 `title_differentiation`，标题对应 `item_name`；使用真实商品类型定义和 Amazon 预校验确认字段支持，不能互相替代。
 - 紫鸟浏览器代操作（`ziniao.control`，单独开关）。
 
 每项改动只改一个字段。归档、删除不提供（不可逆）。规划中的能力（新建活动、广告位、A+、优惠券、FBA 货件等）暂不能执行，可以给用户出手动操作清单，或在用户同意下走紫鸟兜底。
@@ -29,10 +29,13 @@
 {"op":"ads.sp.negativeKeyword.create","campaignId":"1","adGroupId":"2","keywordText":"cat bowl","matchType":"EXACT","reason":"花费$18无单，与产品无关"}
 {"op":"ads.sp.campaign.budget","campaignId":"1","value":30,"reason":"…"}
 {"op":"listing.attribute","sku":"BOWL-BLUE","attribute":"bullet_point","value":["…","…","…","…","…"],"reason":"…"}
+{"op":"listing.attribute","sku":"BOWL-BLUE","attribute":"title_differentiation","languageTag":"en_US","value":"已批准的亮点原文","reason":"仅更新已批准的 Item Highlights"}
 {"op":"listing.price","sku":"BOWL-BLUE","value":21.99,"reason":"…"}
 ```
 
 一个提案里只要有一项不合格，整个提案都不生成（防止“部分改了部分没改”）。修正后重新提交。
+
+文案变更限定为一个属性、目标站点及语言；保留同属性的其他站点/语言实例及其他属性。`xander_listing_get` 可独立读取当前值，无需提案或批准。准备文案提案会调用 Amazon `VALIDATION_PREVIEW`；亮点额外读取真实 PTD 确认字段支持与基础结构，完整条件规则交给 Amazon 预校验。准备阶段不正式写入；演练执行只记录 `DRY_RUN`。当前值与新内容一致时不生成提案，应报告“内容已一致”，不得擅自改文案制造差异或声称本次提交成功。字段映射、预校验和回读边界见 [文案属性流程](../../../docs/listing-attributes.md)。
 
 ## 结果状态
 
