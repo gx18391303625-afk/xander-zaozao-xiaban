@@ -6,7 +6,7 @@ description: "核算亚马逊商品经营利润、期间费用与结算差异；
 ## 数据与工具
 
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读每个 SKU 的采购价、头程、其他单件成本（按生效日期取对应期间的值，`xander_archive_history` 可查历史）。
-- 取数：财务事件 `xander_spapi_get` → `/finances/v0/financialEvents`（必须给有限期间）；结算报表用 `xander_spapi_get` → `/reports/2021-06-30/reports?reportTypes=GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2` 列出系统已生成的报表，再用 `xander_spapi_report` action=collect 下载；销售用 GET_SALES_AND_TRAFFIC_REPORT；广告费用 `xander_ads_report`。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
+- 取数：财务交易 `xander_spapi_get` → `/finances/2024-06-19/transactions`（postedAfter/postedBefore 必须是有限期间；旧版 finances/v0 已弃用，插件会拒绝）；结算报表用 `xander_spapi_get` → `/reports/2021-06-30/reports?reportTypes=GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2` 列出系统已生成的报表，再用 `xander_spapi_report` action=collect 下载；销售用 GET_SALES_AND_TRAFFIC_REPORT；广告费用 `xander_ads_report`。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
 - 快速利润桥：`xander_calc_profit`（逐项标 INCLUDED/NETTED/EXTRA_PAID/ESTIMATED/UNKNOWN/USER_EXCLUDED；缺核心项只给小计）。
 - 本技能只读，不改账户。
 - 未知数字是 null，不是 0；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。

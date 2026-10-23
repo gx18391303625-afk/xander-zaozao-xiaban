@@ -1,15 +1,22 @@
-// 测试用的“假亚马逊”：模拟 LWA、卖家接口、广告接口的一小部分，用来验证整条写入流程。
+// 测试用的“假亚马逊”：模拟 LWA、卖家接口、广告 v1 统一接口、v1/v3 报表的一小部分。
+// 请求/返回结构按官方 OpenAPI（amzn/ads-advanced-tools-docs 与 selling-partner-api-models）编写。
 import http from 'node:http';
+import zlib from 'node:zlib';
+
+const money = (v) => [{ budgetType: 'MONETARY', recurrenceTimePeriod: 'DAILY', budgetValue: { monetaryBudgetValue: { monetaryBudget: { value: v, currencyCode: 'USD' } } } }];
 
 export function startMock() {
   const state = {
-    keywords: { '111': { keywordId: '111', campaignId: 'C1', adGroupId: 'G1', keywordText: 'dog bowl', matchType: 'EXACT', state: 'ENABLED', bid: 1.0 } },
-    campaigns: { 'C1': { campaignId: 'C1', name: 'Bowl - Exact', state: 'ENABLED', budget: { budget: 20, budgetType: 'DAILY' } } },
-    adGroups: { 'G1': { adGroupId: 'G1', campaignId: 'C1', name: 'Exact', state: 'ENABLED', defaultBid: 0.8 } },
-    negatives: {},
+    targets: {
+      '111': { targetId: '111', adGroupId: 'G1', campaignId: 'C1', adProduct: 'SPONSORED_PRODUCTS', negative: false, targetType: 'KEYWORD', state: 'ENABLED', bid: { bid: 1.0, currencyCode: 'USD' }, targetDetails: { keywordTarget: { keyword: 'dog bowl', matchType: 'EXACT' } } },
+    },
+    campaigns: { 'C1': { campaignId: 'C1', adProduct: 'SPONSORED_PRODUCTS', name: 'Bowl - Exact', state: 'ENABLED', budgets: money(20) } },
+    adGroups: { 'G1': { adGroupId: 'G1', campaignId: 'C1', adProduct: 'SPONSORED_PRODUCTS', name: 'Exact', state: 'ENABLED', bid: { defaultBid: 0.8, currencyCode: 'USD' } } },
+    ads: {},
     listing: { sku: 'BOWL-BLUE', productType: 'PET_SUPPLIES', title: 'Old Title', price: 19.99 },
+    reports: {},
     calls: [],
-    mode: {}, // 故障注入：{ kwPut: '503-applied' | '503-not-applied' }
+    mode: {}, // 故障注入：{ targetUpdate: '503-applied' | '503-not-applied' }
   };
   let seq = 1000;
 
@@ -18,8 +25,9 @@ export function startMock() {
     for await (const ch of req) raw += ch;
     const url = new URL(req.url, 'http://x');
     const body = raw && req.headers['content-type']?.includes('json') ? JSON.parse(raw) : raw;
-    state.calls.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), body });
+    state.calls.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), body, headers: req.headers });
     const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+    const base = `http://127.0.0.1:${server.address().port}`;
 
     // ---- LWA ----
     if (url.pathname === '/auth/o2/token') {
@@ -32,6 +40,7 @@ export function startMock() {
     if (url.pathname === '/sellers/v1/marketplaceParticipations') {
       return json(200, { payload: [{ marketplace: { id: 'ATVPDKIKX0DER', countryCode: 'US' }, participation: { isParticipating: true } }] });
     }
+    if (url.pathname === '/orders/2026-01-01/orders') return json(200, { orders: [{ orderId: '111-1' }] });
     const lm = url.pathname.match(/^\/listings\/2021-08-01\/items\/([^/]+)\/([^/]+)$/);
     if (lm) {
       const L = state.listing;
@@ -57,41 +66,76 @@ export function startMock() {
         return json(200, { sku: L.sku, status: 'ACCEPTED', submissionId: 'sub-1', issues: [] });
       }
     }
-    // ---- Ads ----
+    // ---- Ads：profiles（旧接口，仍是官方获取 profile 的方式） ----
     if (url.pathname === '/v2/profiles') {
       return json(200, [{ profileId: 999, countryCode: 'US', currencyCode: 'USD', accountInfo: { type: 'seller', marketplaceStringId: 'ATVPDKIKX0DER', name: 'Test' } }]);
     }
-    if (req.headers['amazon-advertising-api-scope'] === undefined && url.pathname.startsWith('/sp/')) return json(400, { message: 'missing scope' });
-    const listOf = (coll, idKey, filterKey) => {
-      const inc = body?.[filterKey]?.include;
-      const ag = body?.adGroupIdFilter?.include;
-      return Object.values(coll).filter((o) => (!inc || inc.includes(String(o[idKey]))) && (!ag || ag.includes(String(o.adGroupId))));
-    };
-    if (url.pathname === '/sp/keywords/list') return json(200, { keywords: listOf(state.keywords, 'keywordId', 'keywordIdFilter') });
-    if (url.pathname === '/sp/campaigns/list') return json(200, { campaigns: listOf(state.campaigns, 'campaignId', 'campaignIdFilter') });
-    if (url.pathname === '/sp/adGroups/list') return json(200, { adGroups: listOf(state.adGroups, 'adGroupId', 'adGroupIdFilter') });
-    if (url.pathname === '/sp/negativeKeywords/list') {
-      const inc = body?.negativeKeywordIdFilter?.include;
-      return json(200, { negativeKeywords: Object.values(state.negatives).filter((n) => !inc || inc.includes(n.keywordId)) });
+    // ---- Ads v1 统一接口 ----
+    if (url.pathname.startsWith('/adsApi/v1/')) {
+      if (!req.headers['amazon-ads-clientid']) return json(400, { message: 'missing Amazon-Ads-ClientId' });
+      if (req.method !== 'POST') return json(405, { message: 'v1 only accepts POST' });
+      const [, , , action, resource] = url.pathname.split('/');
+      if (resource === 'advertiserAccounts' && action === 'query') {
+        return json(200, { advertiserAccounts: [{ advertiserAccountId: 'amzn1.ads-account.g.TEST', alternateIds: [{ countryCode: 'US', entityId: 'ENT1', profileId: '999' }], displayName: 'Test', isGlobalAccount: true }] });
+      }
+      if (resource === 'reports') {
+        if (action === 'create') {
+          const id = `rep-${++seq}`;
+          state.reports[id] = { reportId: id, status: 'PENDING', query: body.reports[0].query, polls: 0 };
+          return json(207, { error: null, success: [{ index: 0, report: { ...state.reports[id] } }] });
+        }
+        if (action === 'retrieve') {
+          const r = state.reports[body.reportIds[0]];
+          if (!r) return json(207, { error: [{ index: 0, errors: [{ code: 'NOT_FOUND', message: 'no report' }] }], success: [] });
+          r.polls++;
+          if (r.polls >= 2) { r.status = 'COMPLETED'; r.completedReportParts = [{ partNumber: 1, url: `${base}/dl/${r.reportId}.json.gz` }]; }
+          return json(207, { error: null, success: [{ index: 0, report: { ...r } }] });
+        }
+      }
+      const coll = { campaigns: state.campaigns, adGroups: state.adGroups, targets: state.targets, ads: state.ads }[resource];
+      if (!coll) return json(404, { message: `mock: no v1 resource ${resource}` });
+      const singular = { campaigns: 'campaign', adGroups: 'adGroup', targets: 'target', ads: 'ad' }[resource];
+      const idKey = `${singular}Id`;
+      if (action === 'query') {
+        if (!body?.adProductFilter?.include?.length) return json(400, { message: 'adProductFilter required' });
+        const f = (k, v) => !body[k] || body[k].include.map(String).includes(String(v));
+        const items = Object.values(coll).filter((o) => body.adProductFilter.include.includes(o.adProduct)
+          && f(`${idKey}Filter`, o[idKey]) && f('adGroupIdFilter', o.adGroupId) && f('campaignIdFilter', o.campaignId)
+          && f('targetTypeFilter', o.targetType) && (!body.negativeFilter || body.negativeFilter.include.includes(o.negative)));
+        return json(200, { [resource]: items });
+      }
+      if (action === 'update') {
+        const it = body[resource][0];
+        const mode = resource === 'targets' ? state.mode.targetUpdate : null;
+        const obj = coll[it[idKey]];
+        if (!obj) return json(207, { success: [], error: [{ index: 0, errors: [{ code: 'NOT_FOUND', message: 'Existing Object not found' }] }] });
+        if (mode !== '503-not-applied') {
+          if (it.state) obj.state = it.state;
+          if (it.bid?.bid !== undefined) obj.bid.bid = it.bid.bid;
+          if (it.bid?.defaultBid !== undefined) obj.bid.defaultBid = it.bid.defaultBid;
+          if (it.budgets) obj.budgets = money(it.budgets[0].budgetValue.monetaryBudgetValue.monetaryBudget.value);
+        }
+        if (mode?.startsWith('503')) { state.mode.targetUpdate = null; return json(503, { message: 'Service Unavailable' }); }
+        return json(207, { success: [{ index: 0, [singular]: obj }], error: [] });
+      }
+      if (action === 'create' && resource === 'targets') {
+        const it = body.targets[0];
+        if (it.negative === undefined || !it.targetType) return json(400, { message: 'negative and targetType required' });
+        const id = String(++seq);
+        const parent = it.adGroupId ? state.adGroups[it.adGroupId] : null;
+        coll[id] = { ...it, targetId: id, campaignId: it.campaignId || parent?.campaignId, bid: it.bid ? { ...it.bid, currencyCode: 'USD' } : undefined };
+        return json(207, { success: [{ index: 0, target: coll[id] }], error: [] });
+      }
     }
-    if (url.pathname === '/sp/keywords' && req.method === 'PUT') {
-      const mode = state.mode.kwPut;
-      const it = body.keywords[0];
-      if (mode !== '503-not-applied') Object.assign(state.keywords[it.keywordId], it);
-      if (mode?.startsWith('503')) { state.mode.kwPut = null; return json(503, { message: 'Service Unavailable' }); }
-      return json(207, { keywords: { success: [{ index: 0, keywordId: it.keywordId }], error: [] } });
+    // ---- 报表下载（v1/v3 都给 gzip JSON） ----
+    if (url.pathname.startsWith('/dl/')) {
+      const rows = [{ 'date.value': '2026-10-20', 'adProduct.value': 'SPONSORED_PRODUCTS', 'campaign.id': 'C1', 'metric.clicks': 12, 'metric.totalCost': 9.6 }];
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+      return res.end(zlib.gzipSync(Buffer.from(JSON.stringify(rows))));
     }
-    if (url.pathname === '/sp/campaigns' && req.method === 'PUT') {
-      const it = body.campaigns[0];
-      Object.assign(state.campaigns[it.campaignId], it);
-      return json(207, { campaigns: { success: [{ index: 0, campaignId: it.campaignId }], error: [] } });
-    }
-    if (url.pathname === '/sp/negativeKeywords' && req.method === 'POST') {
-      const it = body.negativeKeywords[0];
-      const id = String(++seq);
-      state.negatives[id] = { ...it, keywordId: id };
-      return json(207, { negativeKeywords: { success: [{ index: 0, negativeKeywordId: id }], error: [] } });
-    }
+    // ---- v3 报表（搜索词等暂用） ----
+    if (url.pathname === '/reporting/reports' && req.method === 'POST') return json(200, { reportId: 'v3-rep-1', status: 'PENDING' });
+    if (url.pathname === '/reporting/reports/v3-rep-1') return json(200, { reportId: 'v3-rep-1', status: 'COMPLETED', url: `${base}/dl/v3-rep-1.json.gz`, configuration: { reportTypeId: 'spSearchTerm' } });
     json(404, { message: `mock: no route ${req.method} ${url.pathname}` });
   });
 

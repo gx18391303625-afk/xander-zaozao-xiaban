@@ -86,6 +86,13 @@ async function doctor() {
       try {
         const pf = await listProfiles(alias);
         ok(`广告接口：正常（${pf.length} 个 profile；已绑定 ${Object.entries(s.ads?.profiles || {}).map(([k, v]) => `${k}→${v}`).join('、') || '无'}）`);
+        const { listEntities } = await import('../lib/ads.js');
+        for (const mp of Object.keys(s.ads?.profiles || {})) {
+          try {
+            const r = await listEntities(alias, 'sp.campaigns', { marketplace: mp, maxPages: 1 });
+            ok(`广告 v1 统一接口（${mp}）：可读取，SP 活动 ${r.count}${r.complete ? '' : '+'} 个`);
+          } catch (e) { bad(`广告 v1 统一接口（${mp}）：${e.message}`); }
+        }
       } catch (e) { bad(`广告接口：${e.message}`); }
     }
   }

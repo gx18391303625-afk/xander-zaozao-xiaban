@@ -1,6 +1,6 @@
 {
   "name": "xander-zaozao-xiaban",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件，支持 Claude 和 Codex（GPT）。",
   "type": "module",
   "license": "MIT",

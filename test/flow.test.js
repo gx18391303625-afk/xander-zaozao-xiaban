@@ -29,66 +29,69 @@ test('读卖家接口与广告列表', async () => {
   const kws = await listEntities('main', 'sp.keywords', {});
   assert.equal(kws.count, 1);
   assert.equal(kws.complete, true);
-  const call = mock.state.calls.find((c) => c.path === '/sp/keywords/list');
-  assert.ok(call, '应调用了关键词列表');
+  const call = mock.state.calls.find((c) => c.path === '/adsApi/v1/query/targets');
+  assert.ok(call, '应调用 v1 统一接口查询投放');
+  assert.deepEqual(call.body.targetTypeFilter.include, ['KEYWORD']);
+  assert.equal(call.headers['amazon-ads-clientid'], 'acid');
+  assert.equal(call.headers['amazon-advertising-api-scope'], '999');
 });
 
 test('开关关着时：可以出提案，但不能执行', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.2, reason: '测试' }] });
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.2, reason: '测试' }] });
   assert.equal(pr.ok, true);
   assert.deepEqual(pr.switchesOff.length, 1);
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /开关还关着/);
-  assert.equal(mock.state.keywords['111'].bid, 1.0, '不应改动');
+  assert.equal(mock.state.targets['111'].bid.bid, 1.0, '不应改动');
 });
 
 test('没批准 / 哈希不对 都拒绝', async () => {
-  setSwitch('ads.sp.keyword.bid', true);
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.2 }] });
+  setSwitch('ads.sp.target.bid', true);
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.2 }] });
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: false }), /approved=true/);
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: 'deadbeefdeadbeef', approved: true }), /哈希不匹配/);
 });
 
 test('批准后执行一次并回读一致；不能重复执行', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.2 }] });
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.2 }] });
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'API_STATE_VERIFIED');
-  assert.equal(mock.state.keywords['111'].bid, 1.2);
+  assert.equal(mock.state.targets['111'].bid.bid, 1.2);
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /不能再次执行/);
 });
 
 test('超过安全上限直接拒绝出提案', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 5 }] });
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 5 }] });
   assert.equal(pr.ok, false);
   assert.match(pr.errors[0].error, /安全上限/);
   setLimits({ bidChangePctMax: 400 });
-  const pr2 = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 5 }] });
+  const pr2 = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 5 }] });
   assert.equal(pr2.ok, true);
   setLimits({ bidChangePctMax: 50 });
 });
 
 test('原值被别人改过：跳过不提交', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.3 }] });
-  mock.state.keywords['111'].bid = 1.25; // 模拟有人在后台改了
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.3 }] });
+  mock.state.targets['111'].bid.bid = 1.25; // 模拟有人在后台改了
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'SKIPPED_STALE');
-  assert.equal(mock.state.keywords['111'].bid, 1.25);
+  assert.equal(mock.state.targets['111'].bid.bid, 1.25);
 });
 
 test('提交时服务端 503（其实已生效）→ 结果未知 → 回读确认生效', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.4 }] });
-  mock.state.mode.kwPut = '503-applied';
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.4 }] });
+  mock.state.mode.targetUpdate = '503-applied';
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'API_STATE_VERIFIED', '回读发现已是新值');
-  const puts = mock.state.calls.filter((c) => c.path === '/sp/keywords' && c.method === 'PUT' && c.body.keywords[0].bid === 1.4);
+  const puts = mock.state.calls.filter((c) => c.path === '/adsApi/v1/update/targets' && c.body.targets[0].bid.bid === 1.4);
   assert.equal(puts.length, 1, '写请求只能发一次，不能自动重发');
 });
 
 test('提交时 503（没生效）→ 回读仍是原值 → 判定失败', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.5 }] });
-  mock.state.mode.kwPut = '503-not-applied';
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.5 }] });
+  mock.state.mode.targetUpdate = '503-not-applied';
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'FAILED');
-  assert.equal(mock.state.keywords['111'].bid, 1.4);
+  assert.equal(mock.state.targets['111'].bid.bid, 1.4);
 });
 
 test('提案过期不能执行', async () => {
@@ -101,15 +104,20 @@ test('提案过期不能执行', async () => {
   fs.writeFileSync(f, JSON.stringify(obj));
   setSwitch('ads.sp.campaign.budget', true);
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /过期/);
-  assert.equal(mock.state.campaigns.C1.budget.budget, 20);
+  assert.equal(mock.state.campaigns.C1.budgets[0].budgetValue.monetaryBudgetValue.monetaryBudget.value, 20);
 });
 
 test('新增否定关键词：防重复、回读新对象', async () => {
   setSwitch('ads.sp.negativeKeyword.create', true);
-  const ch = { op: 'ads.sp.negativeKeyword.create', campaignId: 'C1', adGroupId: 'G1', keywordText: 'cat', matchType: 'NEGATIVE_EXACT' };
+  const ch = { op: 'ads.sp.negativeKeyword.create', campaignId: 'C1', adGroupId: 'G1', keywordText: 'cat', matchType: 'NEGATIVE_EXACT' }; // 旧写法也能识别
   const pr = await prepareChange({ store: 'main', changes: [ch] });
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'API_STATE_VERIFIED');
+  const created = mock.state.calls.find((c) => c.path === '/adsApi/v1/create/targets').body.targets[0];
+  assert.equal(created.negative, true);
+  assert.equal(created.targetType, 'KEYWORD');
+  assert.equal(created.targetDetails.keywordTarget.matchType, 'EXACT');
+  assert.equal(created.bid, undefined, '否定词没有竞价');
   const again = await prepareChange({ store: 'main', changes: [ch] });
   assert.equal(again.ok, false);
   assert.match(again.errors[0].error, /已有相同/);
@@ -142,8 +150,8 @@ test('改价超过 ±20% 被拒，范围内可执行', async () => {
 
 test('一个提案里有一项不合格，整个提案不生成', async () => {
   const pr = await prepareChange({ store: 'main', changes: [
-    { op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.45 },
-    { op: 'ads.sp.keyword.bid', keywordId: 'NOPE', value: 1 },
+    { op: 'ads.sp.target.bid', targetId: '111', value: 1.45 },
+    { op: 'ads.sp.target.bid', targetId: 'NOPE', value: 1 },
   ] });
   assert.equal(pr.ok, false);
   assert.equal(pr.passed, 1);
@@ -156,7 +164,7 @@ test('不认识的操作和规划中的功能不能用', async () => {
 
 test('面板审批模式：没在面板批准不能执行', async () => {
   updateConfig((c) => { c.settings.approvalMode = 'panel'; });
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.45 }] });
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.45 }] });
   await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /面板审批/);
   const { panelDecision } = await import('../lib/proposals.js');
   panelDecision(pr.proposalId, 'approve');
@@ -167,11 +175,11 @@ test('面板审批模式：没在面板批准不能执行', async () => {
 
 test('演练模式：只记录不提交', async () => {
   updateConfig((c) => { c.settings.dryRun = true; });
-  const before = mock.state.keywords['111'].bid;
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: 1.1 }] });
+  const before = mock.state.targets['111'].bid.bid;
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.1 }] });
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
   assert.equal(r.status, 'DRY_RUN');
-  assert.equal(mock.state.keywords['111'].bid, before);
+  assert.equal(mock.state.targets['111'].bid.bid, before);
   updateConfig((c) => { c.settings.dryRun = false; });
 });
 
@@ -180,7 +188,7 @@ test('一键全开不含紫鸟；一键全关全部关闭', () => {
   assert.equal(isOn('ads.sp.campaign.state'), true);
   assert.equal(isOn('ziniao.control'), false);
   setAll(false);
-  assert.equal(isOn('ads.sp.keyword.bid'), false);
+  assert.equal(isOn('ads.sp.target.bid'), false);
 });
 
 test('verify 可以重复回读', async () => {
@@ -190,4 +198,78 @@ test('verify 可以重复回读', async () => {
   const v = await verifyChange({ proposalId: pr.proposalId });
   assert.equal(v.status, 'API_STATE_VERIFIED');
   assert.equal(loadProposal(pr.proposalId).items[0].result.status, 'API_STATE_VERIFIED');
+});
+
+test('v1 写入请求格式：竞价、预算、广告组默认竞价', async () => {
+  setSwitch('ads.sp.target.bid', true); setSwitch('ads.sp.campaign.budget', true); setSwitch('ads.sp.adGroup.defaultBid', true);
+  const before = mock.state.targets['111'].bid.bid;
+  const pr = await prepareChange({ store: 'main', changes: [
+    { op: 'ads.sp.target.bid', targetId: '111', value: Math.round(before * 110) / 100 },
+    { op: 'ads.sp.campaign.budget', campaignId: 'C1', value: 30 },
+    { op: 'ads.sp.adGroup.defaultBid', adGroupId: 'G1', value: 0.9 },
+  ] });
+  assert.equal(pr.ok, true, JSON.stringify(pr.errors));
+  const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });
+  assert.equal(r.status, 'API_STATE_VERIFIED');
+  const upd = (res) => mock.state.calls.filter((c) => c.path === `/adsApi/v1/update/${res}`).at(-1);
+  assert.equal(upd('campaigns').method, 'POST');
+  assert.equal(upd('campaigns').headers['content-type'], 'application/json');
+  assert.deepEqual(upd('campaigns').body.campaigns[0].budgets[0].budgetValue.monetaryBudgetValue.monetaryBudget, { value: 30 });
+  assert.equal(upd('campaigns').body.campaigns[0].budgets[0].recurrenceTimePeriod, 'DAILY');
+  assert.deepEqual(upd('adGroups').body.adGroups[0].bid, { defaultBid: 0.9 });
+  assert.ok(upd('targets').body.targets[0].bid.bid > 0);
+});
+
+test('旧操作名（keywordId 写法）自动转换成 v1', async () => {
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.keyword.bid', keywordId: '111', value: mock.state.targets['111'].bid.bid + 0.05 }] });
+  assert.equal(pr.ok, true, JSON.stringify(pr.errors));
+  assert.match(JSON.stringify(pr.table), /targetId/);
+});
+
+test('否定投放不能改竞价', async () => {
+  mock.state.targets['999'] = { targetId: '999', adGroupId: 'G1', campaignId: 'C1', adProduct: 'SPONSORED_PRODUCTS', negative: true, targetType: 'KEYWORD', state: 'ENABLED', targetDetails: { keywordTarget: { keyword: 'x', matchType: 'EXACT' } } };
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '999', value: 1 }] });
+  assert.equal(pr.ok, false);
+  assert.match(pr.errors[0].error, /否定投放/);
+});
+
+test('v1 报表：自动找广告主账户 → 申请 → 下载', async () => {
+  const { requestAdsReport, collectAdsReport } = await import('../lib/ads.js');
+  const r = await requestAdsReport('main', { preset: 'campaigns', startDate: '2026-10-14', endDate: '2026-10-20' });
+  assert.equal(r.api, 'v1');
+  const create = mock.state.calls.find((c) => c.path === '/adsApi/v1/create/reports');
+  assert.equal(create.body.accessRequestedAccounts[0].advertiserAccountId, 'amzn1.ads-account.g.TEST');
+  assert.ok(create.body.reports[0].query.fields.includes('metric.totalCost'));
+  assert.match(r.note, /全球广告账户/);
+  const again = await requestAdsReport('main', { preset: 'campaigns', startDate: '2026-10-14', endDate: '2026-10-20' });
+  assert.equal(again.reused, true, '12 小时内复用');
+  const first = await collectAdsReport('main', r.reportId);
+  assert.match(first.note, /还在生成/);
+  const done = await collectAdsReport('main', r.reportId);
+  assert.equal(done.status, 'COMPLETED');
+  assert.equal(done.rows, 1);
+  const { loadConfig } = await import('../lib/config.js');
+  assert.equal(loadConfig().stores.main.ads.accounts.US.advertiserAccountId, 'amzn1.ads-account.g.TEST', '账户 ID 已缓存');
+});
+
+test('搜索词报表：v1 字段未公开，暂自动用 v3 并提示关停日期', async () => {
+  const { requestAdsReport, collectAdsReport } = await import('../lib/ads.js');
+  const r = await requestAdsReport('main', { preset: 'sp_search_terms', startDate: '2026-10-14', endDate: '2026-10-20' });
+  assert.equal(r.api, 'v3');
+  assert.match(r.note, /2027-06-30/);
+  const done = await collectAdsReport('main', r.reportId);
+  assert.equal(done.api, 'v3');
+  assert.equal(done.status, 'COMPLETED');
+});
+
+test('SP-API：已弃用接口被拒绝并给出新路径；新版订单接口可用', async () => {
+  const { checkSpapiPath, checkReportType } = await import('../lib/deprecations.js');
+  assert.throws(() => checkSpapiPath('/orders/v0/orders'), /2026-01-01/);
+  assert.throws(() => checkSpapiPath('/finances/v0/financialEvents'), /2024-06-19/);
+  assert.throws(() => checkSpapiPath('/fba/inbound/v0/shipments'), /2024-03-20/);
+  assert.doesNotThrow(() => checkSpapiPath('/orders/2026-01-01/orders'));
+  assert.throws(() => checkReportType('GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE'), /FLAT_FILE_V2/);
+  assert.doesNotThrow(() => checkReportType('GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2'));
+  const data = await spapi('main', 'GET', '/orders/2026-01-01/orders', { query: { createdAfter: '2026-10-01T00:00:00Z' } });
+  assert.equal(data.orders[0].orderId, '111-1');
 });

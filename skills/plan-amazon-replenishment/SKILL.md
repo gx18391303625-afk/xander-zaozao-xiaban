@@ -6,7 +6,7 @@ description: "亚马逊在售商品库存续航、补货数量与颜色分配、
 ## 数据与工具
 
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读箱规（case_pack_qty）、MOQ、生产交期、海运/空运时效、安全库存天数和采购价——档案有的不再问。
-- 取数：FBA 库存 `xander_spapi_get` → `/fba/inventory/v1/summaries`（details=true，区分可售/预留/入库中）；入库货件 `/fba/inbound/v0/shipments` 或新版入库接口；销量用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT（按天、子 ASIN）。自发货库存看 `xander_listing_get` 的 fulfillmentAvailability。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
+- 取数：FBA 库存 `xander_spapi_get` → `/fba/inventory/v1/summaries`（details=true，区分可售/预留/入库中）；入库计划与货件 `/inbound/fba/2024-03-20/inboundPlans`（旧版 Inbound v0 已下线）；销量用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT（按天、子 ASIN）。自发货库存看 `xander_listing_get` 的 fulfillmentAvailability。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
 - 快速测算：`xander_calc_replenishment`（续航、断货日、情景件数与整箱数）。
 - 本插件不下采购单、不建 FBA 货件。唯一的库存写入是自发货数量（op=`listing.fbmQuantity`），按 [写入安全](../xander-operations/references/write-safety.md) 走提案与批准。
 - 未知数字是 null，不是 0；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。

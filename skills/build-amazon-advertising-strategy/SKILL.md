@@ -6,9 +6,9 @@ description: "核算亚马逊站内广告盈亏线，设计或审计 SP/SB/SD �
 ## 数据与工具
 
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读采购价、头程、利润底线、库存约束和过往广告决策。
-- 取数：广告对象 `xander_ads_list`（sp.campaigns / sp.adGroups / sp.keywords / sp.targets / sp.productAds / sb.campaigns / sd.campaigns / sd.targets，自动翻页）；广告报表 `xander_ads_report`（preset：sp_campaigns、sp_search_terms、sp_targeting、sp_advertised_product、sb_campaigns、sd_campaigns，或自定 configuration）；总销售与转化用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT。SP、SB、SD 分开取、分开统计。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
+- 取数：广告对象 `xander_ads_list`（SP/SB 走 Ads API v1 统一接口：sp.campaigns / sp.adGroups / sp.ads / sp.targets / sp.keywords / sp.negativeKeywords / sb.*；SD 暂用原接口 sd.campaigns / sd.targets）；广告报表 `xander_ads_report`（Reporting API v1：preset campaigns、ad_groups、campaigns_summary 或自定 fields；搜索词 sp_search_terms、投放 sp_targeting、推广商品 sp_advertised_product 暂自动用 v3，2027-06-30 关停）；总销售与转化用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT。SP、SB、SD 分开统计。字段位置和口径见 [取数方法](../xander-operations/references/data-workflow.md)。
 - 快速经济线：`xander_calc_ad_economics`；完整计算与策略包校验用本技能 scripts 里的 Python 脚本（宿主能执行代码时）。
-- 改账户只走 [写入安全](../xander-operations/references/write-safety.md)：`xander_prepare_change` → 用户批准这一份 → `xander_execute_change` → 回读。可用操作：SP 活动开停/日预算、广告组开停/默认竞价、关键词竞价/开停、投放竞价/开停、广告商品开停、新增关键词、新增否词；SB 活动开停/预算；SD 活动开停/预算、投放竞价/开停。开关只有用户能开。
+- 改账户只走 [写入安全](../xander-operations/references/write-safety.md)：`xander_prepare_change` → 用户批准这一份 → `xander_execute_change` → 回读。可用操作：SP 活动开停/日预算、广告组开停/默认竞价、投放竞价/开停（关键词、商品、自动投放统一用 targetId）、广告商品开停、新增关键词、新增否词（广告组级/活动级）；SB 活动开停/日预算、投放竞价/开停；SD 活动开停/预算、投放竞价/开停（原接口）。开关只有用户能开。
 - 未知数字是 null，不是 0；第三方估算标 ESTIMATED；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。
 
 # Build Amazon Advertising Strategy
@@ -76,7 +76,7 @@ For supported math use [calculate_ad_economics.py](scripts/calculate_ad_economic
 
 ## Complete advertising coverage
 
-Read SP, SB and SD separately and keep per-product coverage and enabled/paused/archived counts separate; counts belong to the selected profile (one marketplace), not all countries. `xander_ads_list` reports `complete=false` when pages remain — then the conclusion is partial. Request campaign reports separately per ad product and preserve attribution differences (SP 7-day `purchases7d/sales7d`; SB/SD differ). A pending or failed report is unknown, never zero. The last 1–3 days are still backfilling.
+Read SP, SB and SD separately and keep per-product coverage and enabled/paused/archived counts separate; counts belong to the selected profile (one marketplace), not all countries. `xander_ads_list` reports `complete=false` when pages remain — then the conclusion is partial. Reporting API v1 returns SP/SB/SD together; split rows by `adProduct.value` and never add different currencies. Keep v1 metrics (`metric.purchases/sales`) and any v3 fallback metrics (SP 7-day `purchases7d/sales7d`) apart, and state which API and attribution each number comes from. A pending or failed report is unknown, never zero. The last 1–3 days are still backfilling. If the user runs Amazon Marketing Stream, it must be v2 (v1 sunsets 2027-06-30).
 
 ## 收尾
 

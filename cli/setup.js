@@ -7,7 +7,7 @@ import { setSecret, getSecret, backendLabel } from '../lib/secrets.js';
 import { accessToken, exchangeCode, clearTokenCache } from '../lib/lwa.js';
 import { MARKETPLACES, ADS_AUTH_URLS, marketplace, marketplaceById } from '../lib/regions.js';
 import { spapi } from '../lib/spapi.js';
-import { listProfiles } from '../lib/ads.js';
+import { listProfiles, listAdvertiserAccounts } from '../lib/ads.js';
 import { ensureHome, homeDir } from '../lib/paths.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -141,9 +141,22 @@ async function setupAds() {
   if (!(await confirm('这样对应对吗？（一般选 seller 类型）', true))) {
     for (const k of Object.keys(map)) map[k] = await ask(`${k} 站用哪个 profileId`, map[k]);
   }
+  // v1 报表需要“广告主账户 ID”，这里顺便记下（统一接口的账户查询仍是测试版，失败不影响使用）
+  const accounts = {};
+  try {
+    const list = await listAdvertiserAccounts(alias);
+    for (const [mp, pid] of Object.entries(map)) {
+      const hit = list.filter((a) => (a.alternateIds || []).some((x) => String(x.profileId) === String(pid)))
+        .sort((a, b) => (a.alternateIds?.length || 0) - (b.alternateIds?.length || 0))[0];
+      if (hit) accounts[mp] = { advertiserAccountId: hit.advertiserAccountId, isGlobalAccount: !!hit.isGlobalAccount || (hit.alternateIds || []).length > 1 };
+    }
+    console.log(c.green(`✓ 已对应广告主账户（v1 报表用）：${Object.keys(accounts).join('、') || '无'}`));
+  } catch (e) {
+    console.log(c.yellow(`! 暂时查不到广告主账户（v1 报表会在第一次用时再查）：${e.message}`));
+  }
   updateConfig((cf) => {
     const s = cf.stores[alias];
-    s.ads = { profiles: map };
+    s.ads = { profiles: map, accounts };
     s.marketplaces = [...new Set([...(s.marketplaces || []), ...Object.keys(map)])];
     s.defaultMarketplace ||= s.marketplaces[0];
   });

@@ -12,9 +12,9 @@
 
 用 `xander_switches` 查看完整列表和参数。当前包括：
 
-- SP 商品推广：活动开/停与日预算、广告组开/停与默认竞价、关键词竞价与开/停、商品/自动投放竞价与开/停、广告商品开/停、新增关键词、新增否定关键词。
-- SB 品牌推广（Beta）：活动开/停与预算。
-- SD 展示型（Beta）：活动开/停与预算、投放竞价与开/停。
+- SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）。
+- SB 品牌推广（Ads API v1）：活动开/停与日预算、投放竞价与开/停。
+- SD 展示型（Beta，暂用原 SD 接口）：活动开/停与预算、投放竞价与开/停。
 - Listing：标题/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。
 - 紫鸟浏览器代操作（`ziniao.control`，单独开关）。
 
@@ -25,8 +25,9 @@
 `changes` 每项一个对象，例如：
 
 ```json
-{"op":"ads.sp.keyword.bid","keywordId":"123456","value":0.85,"reason":"近14天ACoS 62%，高于盈亏线45%"}
-{"op":"ads.sp.negativeKeyword.create","campaignId":"1","adGroupId":"2","keywordText":"cat bowl","matchType":"NEGATIVE_EXACT","reason":"花费$18无单，与产品无关"}
+{"op":"ads.sp.target.bid","targetId":"123456","value":0.85,"reason":"近14天ACoS 62%，高于盈亏线45%"}
+{"op":"ads.sp.negativeKeyword.create","campaignId":"1","adGroupId":"2","keywordText":"cat bowl","matchType":"EXACT","reason":"花费$18无单，与产品无关"}
+{"op":"ads.sp.campaign.budget","campaignId":"1","value":30,"reason":"…"}
 {"op":"listing.attribute","sku":"BOWL-BLUE","attribute":"bullet_point","value":["…","…","…","…","…"],"reason":"…"}
 {"op":"listing.price","sku":"BOWL-BLUE","value":21.99,"reason":"…"}
 ```

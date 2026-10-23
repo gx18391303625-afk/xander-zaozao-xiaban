@@ -8,7 +8,8 @@ import { loadConfig, getStore } from '../lib/config.js';
 import { p, homeDir, ensureHome } from '../lib/paths.js';
 import { backendLabel, getSecret } from '../lib/secrets.js';
 import { spapi, getListing, requestReport, collectReport } from '../lib/spapi.js';
-import { listProfiles, listEntities, requestAdsReport, collectAdsReport, ENTITIES } from '../lib/ads.js';
+import { listProfiles, listEntities, requestAdsReport, collectAdsReport, ENTITIES, V1_PRESETS, V3_PRESETS, V3_REPORT_SUNSET } from '../lib/ads.js';
+import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
 import * as calc from '../lib/calc.js';
 import { listSwitches } from '../lib/switches.js';
@@ -44,15 +45,6 @@ const mkt = str('站点代码，如 US、UK、DE、JP（省略则用店铺默认
 const READ = { readOnlyHint: true, openWorldHint: true };
 const LOCAL_READ = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
-
-const REPORT_PRESETS = {
-  sp_campaigns: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'campaignStatus', 'campaignBudgetAmount', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d', 'unitsSoldClicks7d'] },
-  sp_search_terms: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spSearchTerm', groupBy: ['searchTerm'], columns: ['date', 'campaignId', 'adGroupId', 'keywordId', 'keyword', 'matchType', 'searchTerm', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'] },
-  sp_targeting: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spTargeting', groupBy: ['targeting'], columns: ['date', 'campaignId', 'adGroupId', 'keywordId', 'targeting', 'keywordType', 'matchType', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'] },
-  sp_advertised_product: { adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spAdvertisedProduct', groupBy: ['advertiser'], columns: ['date', 'campaignId', 'adGroupId', 'advertisedAsin', 'advertisedSku', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d', 'unitsSoldClicks7d'] },
-  sb_campaigns: { adProduct: 'SPONSORED_BRANDS', reportTypeId: 'sbCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'purchases', 'sales'] },
-  sd_campaigns: { adProduct: 'SPONSORED_DISPLAY', reportTypeId: 'sdCampaigns', groupBy: ['campaign'], columns: ['date', 'campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'purchases', 'sales'] },
-};
 
 export function buildTools(version) {
   return [
@@ -92,11 +84,12 @@ export function buildTools(version) {
     // ---------------- 卖家接口（只读） ----------------
     {
       name: 'xander_spapi_get',
-      description: '只读调用亚马逊卖家接口（SP-API）的任意 GET 路径，例如 /fba/inventory/v1/summaries、/orders/v0/orders、/catalog/2022-04-01/items/{asin}、/sellers/v1/marketplaceParticipations。query 里的 marketplaceIds 可用站点代码自动换算。分页请按返回的 nextToken 继续调用。',
+      description: '只读调用亚马逊卖家接口（SP-API）的 GET 路径（只用最新版本）：库存 /fba/inventory/v1/summaries、订单 /orders/2026-01-01/orders、财务 /finances/2024-06-19/transactions、目录 /catalog/2022-04-01/items/{asin}、入库 /inbound/fba/2024-03-20/inboundPlans、站点 /sellers/v1/marketplaceParticipations。已弃用的旧版本（orders/v0、finances/v0 等）会被拒绝并提示新路径。站点参数会自动补上。分页按返回的 nextToken / paginationToken 继续调用。',
       inputSchema: S({ store, path: str('以 / 开头的接口路径'), query: { type: 'object', description: '查询参数', additionalProperties: true }, marketplace: mkt }, ['path']),
       annotations: READ,
       async handler({ store: alias, path: apiPath, query = {}, marketplace }) {
         if (!apiPath?.startsWith('/')) throw new Error('path 必须以 / 开头');
+        checkSpapiPath(apiPath);
         const s = getStore(alias);
         const q = { ...query };
         const code = marketplace || s.defaultMarketplace;
@@ -104,7 +97,9 @@ export function buildTools(version) {
         if (code && !q.marketplaceIds && !q.MarketplaceIds) {
           if (apiPath.startsWith('/fba/inventory')) {
             q.granularityType ||= 'Marketplace'; q.granularityId ||= mpOf(code).id; q.marketplaceIds = mpOf(code).id;
-          } else if (/^\/(orders|catalog|listings|sales|products\/pricing|finances\/2024)/.test(apiPath)) {
+          } else if (/^\/finances\/2024-06-19\/transactions/.test(apiPath)) {
+            q.marketplaceId ||= mpOf(code).id;
+          } else if (/^\/(orders|catalog|listings|sales|products\/pricing|finances\/2024-06-19\/(balances|summary))/.test(apiPath)) {
             q.marketplaceIds = mpOf(code).id;
           }
         }
@@ -123,7 +118,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_spapi_report',
-      description: '卖家报表（异步）。action=request 申请（12 小时内同参数自动复用，避免限流），action=collect 查询并下载到本地文件。常用 reportType：GET_SALES_AND_TRAFFIC_REPORT、GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA、GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL、GET_MERCHANT_LISTINGS_ALL_DATA、GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT。生成中不等于没数据，不要当 0。',
+      description: '卖家报表（异步）。action=request 申请（12 小时内同参数自动复用，避免限流），action=collect 查询并下载到本地文件。常用 reportType：GET_SALES_AND_TRAFFIC_REPORT、GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA、GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL、GET_MERCHANT_LISTINGS_ALL_DATA、GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT；结算报表用 GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2（系统定期生成，先用 /reports/2021-06-30/reports?reportTypes=… 列出再 collect）。已弃用的报表类型会被拒绝。生成中不等于没数据，不要当 0。',
       inputSchema: S({
         store, action: { type: 'string', enum: ['request', 'collect'] }, reportType: str('报表类型'),
         marketplaces: { type: 'array', items: { type: 'string' }, description: '站点代码数组' },
@@ -135,6 +130,7 @@ export function buildTools(version) {
       async handler(a) {
         if (a.action === 'request') {
           if (!a.reportType) throw new Error('request 需要 reportType');
+          checkReportType(a.reportType);
           return out(await requestReport(a.store, a));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
@@ -156,7 +152,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_ads_list',
-      description: `读取广告对象列表（自动翻页）。entity 可选：${Object.keys(ENTITIES).join('、')}。filters 原样传给亚马逊，例如 {"stateFilter":{"include":["ENABLED","PAUSED"]}}、{"campaignIdFilter":{"include":["123"]}}；SD 用 {"stateFilter":"enabled,paused"}。`,
+      description: `读取广告对象列表（自动翻页）。SP/SB 用 Amazon Ads API v1 统一接口，SD 暂用原接口。entity 可选：${Object.keys(ENTITIES).join('、')}（v1 里关键词、否定词、商品投放、自动投放都属于“targets”；sp.keywords / sp.negativeKeywords 是自动加好筛选的快捷方式）。filters 原样传给亚马逊，例如 {"stateFilter":{"include":["ENABLED","PAUSED"]}}、{"campaignIdFilter":{"include":["123"]}}、{"targetTypeFilter":{"include":["PRODUCT"]}}；SD 用 {"stateFilter":"enabled,paused"}。v1 的竞价在 bid.bid（投放）或 bid.defaultBid（广告组），预算在 budgets[0].budgetValue.monetaryBudgetValue.monetaryBudget.value。`,
       inputSchema: S({ store, entity: { type: 'string', enum: Object.keys(ENTITIES) }, marketplace: mkt, filters: { type: 'object', additionalProperties: true }, maxPages: num('最多翻几页，默认 20') }, ['entity']),
       annotations: READ,
       async handler({ store: alias, entity, marketplace, filters, maxPages }) {
@@ -167,22 +163,21 @@ export function buildTools(version) {
     },
     {
       name: 'xander_ads_report',
-      description: `广告报表 v3（异步）。action=request 申请（可用 preset：${Object.keys(REPORT_PRESETS).join('、')}，或自己传 configuration），action=collect 查询并下载到本地文件。报表最长 31 天/次；生成中不等于 0；SD 没有搜索词报表。`,
+      description: `广告报表（异步）。默认用 Reporting API v1：preset 可选 ${Object.keys(V1_PRESETS).join('、')}，或自己传 fields（如 campaign.id、adGroup.id、date.value、adProduct.value、budgetCurrency.value、metric.clicks、metric.totalCost、metric.sales 等）；v1 报表覆盖 SP/SB/SD，结果里用 adProduct.value 区分。搜索词、投放、推广商品三类报表的 v1 字段官方尚未公开，preset=${Object.keys(V3_PRESETS).join('、')} 暂自动用 v3（${V3_REPORT_SUNSET} 关停）。action=request 申请（12 小时内同参数自动复用），action=collect 下载到本地文件。生成中不等于 0；SD 没有搜索词报表。`,
       inputSchema: S({
         store, action: { type: 'string', enum: ['request', 'collect'] }, marketplace: mkt,
-        preset: { type: 'string', enum: Object.keys(REPORT_PRESETS) },
+        preset: { type: 'string', enum: [...Object.keys(V1_PRESETS), ...Object.keys(V3_PRESETS)] },
+        fields: { type: 'array', items: { type: 'string' }, description: 'v1 自定字段（不用 preset 时）' },
         startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD'),
-        configuration: { type: 'object', additionalProperties: true, description: '完整 configuration（不用 preset 时）' },
         reportId: str('collect 时必填'),
       }, ['action']),
       annotations: READ,
       async handler(a) {
         const s = getStore(a.store);
         if (a.action === 'request') {
-          const configuration = a.configuration || (a.preset ? { ...REPORT_PRESETS[a.preset], timeUnit: 'DAILY', format: 'GZIP_JSON' } : null);
-          if (!configuration) throw new Error('需要 preset 或 configuration');
           if (!a.startDate || !a.endDate) throw new Error('需要 startDate 和 endDate');
-          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, configuration }));
+          if (!a.preset && !a.fields?.length) throw new Error('需要 preset 或 fields');
+          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, preset: a.preset, fields: a.fields }));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
@@ -309,7 +304,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_prepare_change',
-      description: '为亚马逊改动生成精确提案（只读，不改任何东西）：读取当前值、检查安全上限、Listing 会先做亚马逊预校验，返回提案编号、哈希和新旧值对照表。changes 每项格式见 xander_switches 的 operations，例如 {"op":"ads.sp.keyword.bid","keywordId":"123","value":0.85,"reason":"..."}。',
+      description: '为亚马逊改动生成精确提案（只读，不改任何东西）：读取当前值、检查安全上限、Listing 会先做亚马逊预校验，返回提案编号、哈希和新旧值对照表。changes 每项格式见 xander_switches 的 operations，例如 {"op":"ads.sp.target.bid","targetId":"123","value":0.85,"reason":"..."}。',
       inputSchema: S({
         store, marketplace: mkt, note: str('这次改动的目的'),
         changes: { type: 'array', items: { type: 'object', additionalProperties: true } },

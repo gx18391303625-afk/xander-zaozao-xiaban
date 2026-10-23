@@ -71,8 +71,8 @@ test('开关面板：没口令、外部 Host 都被拒；有口令可以拨开�
     const h = { host: `127.0.0.1:${port}`, 'x-xander-token': token, 'content-type': 'application/json' };
     const st = JSON.parse((await req(port, { pathName: '/api/state', headers: h })).body);
     assert.ok(st.switches.items.length > 10);
-    const after = JSON.parse((await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'ads.sp.keyword.bid', on: true } })).body);
-    assert.equal(after.switches.items.find((x) => x.id === 'ads.sp.keyword.bid').on, true);
+    const after = JSON.parse((await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'ads.sp.target.bid', on: true } })).body);
+    assert.equal(after.switches.items.find((x) => x.id === 'ads.sp.target.bid').on, true);
     const bad = await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'fba.inbound', on: true } });
     assert.equal(bad.status, 400, '规划中的功能不能打开');
     const all = JSON.parse((await req(port, { method: 'POST', pathName: '/api/all', headers: h, body: { on: true } })).body);
@@ -84,7 +84,7 @@ test('开关面板：没口令、外部 Host 都被拒；有口令可以拨开�
 
 test('终端开关命令：非交互环境不能打开开关', async () => {
   const r = await new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(root, 'cli/xander.js'), 'switch', 'on', 'ads.sp.keyword.bid'], { env: { ...process.env, XANDER_HOME: dir, XANDER_SECRET_BACKEND: 'file' } });
+    const child = spawn(process.execPath, [path.join(root, 'cli/xander.js'), 'switch', 'on', 'ads.sp.target.bid'], { env: { ...process.env, XANDER_HOME: dir, XANDER_SECRET_BACKEND: 'file' } });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });
