@@ -131,6 +131,16 @@ Evaluate a faster bridge route only when the primary route would arrive after pr
 
 Advertising response to unresolved replenishment risk is bounded: hold launch, reduce exposure, preserve inventory, or route an operational handback. This Skill does not create a purchase order, book freight, or count inbound stock as available.
 
+### Seasonal sell-through and residual stock
+
+For a seasonal timing or end-of-season decision, use the shared [seasonal decision review](../../xander-operations/references/seasonal-decision-review.md). Seasonal demand phases are decision context within the existing product-mode phase graph and contracts; do not add phase enums or JSON fields.
+
+Compare the evidenced remaining economic sales window and acceptable ending residual with the quantity that can realistically sell in that window. Keep the residual target explicit rather than assuming zero. Use consistent sellable-offer or physical-unit quantities, and project each inbound batch only from its evidenced expected sellable date; it is not current advertising-available stock. Compare the required depletion pace with supported daily sell-through scenarios and the projected ending residual. Cheap clicks are useful only if the resulting conversion volume, contribution and cash recovery also serve that objective; lower CPC alone cannot establish a successful clearance plan.
+
+A proposed price, promotion or advertising scale changes the demand scenario: recalculate daily depletion, stockout/residual dates and inventory cover before reusing an earlier cover figure. The quick replenishment calculator applies supplied demand assumptions; it does not forecast a seasonal demand curve. Where demand or supply changes within the window, use the replenishment skill's [dated inventory projection](../../plan-amazon-replenishment/references/inventory-and-fulfillment.md#按时间投影库存) and preserve assumptions separately from observed demand.
+
+Recalculate economics for each price/promotion scenario, including discounts, variable promotion fees, fixed Deal/Coupon fees and their supported order-allocation basis. Changing expected orders changes that fixed-cost allocation; a missing fee is not zero, and lower ACoS alone does not prove better total cash recovery. Keep full contribution profit distinct from cash recovered and state any remaining inventory exposure. Clearance is not a launch-learning experiment and cannot inherit its loss exception. A proposed departure from the current profit floor or cash limit needs a separately scoped user decision and evidenced context revision; preserve blocked/provisional results until the applicable contract is satisfied. Price/promotional execution remains outside this Skill's Ads-only authority.
+
 ## 6. Change and evidence boundaries
 
 Preserve these states separately:

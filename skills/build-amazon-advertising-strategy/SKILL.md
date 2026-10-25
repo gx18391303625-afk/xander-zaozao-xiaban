@@ -44,6 +44,7 @@ Load each applicable reference in full. A narrow result does not inherit a full-
 | Async reports, dated snapshots or shared input versions | [report-reuse-and-input-versions.md](references/report-reuse-and-input-versions.md) |
 | Business Reports/Data Kiosk traffic, child-ASIN conversion, retail/Ads coverage | [business-traffic-and-coverage.md](references/business-traffic-and-coverage.md) |
 | Profit floors, price phases, seasonality, inventory/replenishment, or full-plan operating context | [operating-context-and-replenishment.md](references/operating-context-and-replenishment.md) |
+| Seasonal timing, demand-window changes or end-of-season sell-through | [Seasonal decision review](../xander-operations/references/seasonal-decision-review.md), with the relevant operating-context checks above; reuse existing product-mode stages and package fields |
 | New-product launch plan or promotion rhythm | [new-product-launch.md](references/new-product-launch.md) |
 | Existing-product optimization plan/diagnosis | [existing-product-optimization.md](references/existing-product-optimization.md) |
 | Recent 1–3 day/hourly pacing or Marketing Stream attribution | [hourly-data-and-attribution.md](references/hourly-data-and-attribution.md) |
