@@ -238,7 +238,9 @@ first eligible review gate
 
 When advertising is not the primary root cause, create an evidence-linked handback without modifying the upstream artifact:
 
-- negative contribution, cost/price, compliance, supply, or product-market issue → tell the user it is a product-level decision outside this plugin (selection is frozen), with the evidence;
+- cost, fee, profit-basis, or period-reconciliation issue → `$reconcile-amazon-profit`;
+- inventory coverage, replenishment quantity, or supply-route feasibility → `$plan-amazon-replenishment`;
+- product positioning, compliance, or continuation decision outside those operational scopes → `PRODUCT_LEVEL_USER_REVIEW`, with evidence and no product-entry conclusion;
 - changed competitor price/rating/ratings-count barrier → `$analyze-amazon-competitors`;
 - query intent, coverage, source, or role problem → `$build-amazon-keyword-library`;
 - Listing/variation/claim/conversion-message problem → `$write-amazon-listing`;

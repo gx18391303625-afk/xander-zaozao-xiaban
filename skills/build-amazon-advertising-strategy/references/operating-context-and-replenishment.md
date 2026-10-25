@@ -4,7 +4,7 @@ Use this reference for both product modes whenever profit floors, price changes,
 
 ## 1. Operating objective
 
-The preserved envelope is bound by a top-level `operating_context_sha256`, calculated with the shared canonical JSON rule from the selection handoff. Every full-workflow upstream snapshot repeats both the stable `context_id` and this hash. New observations live in timestamped strategy snapshots or append-only updates; they do not silently rewrite and rehash the upstream envelope.
+The preserved envelope is bound by a top-level `operating_context_sha256`, calculated with the shared canonical JSON rule. Every supplied upstream snapshot repeats both the stable `context_id` and this hash, including independent work with existing context. A genuinely standalone package without prior context need not invent an envelope or selection lineage. New observations live in timestamped strategy snapshots or append-only updates; they do not silently rewrite and rehash the upstream envelope.
 
 The default business objective is to maximize total contribution profit inside verified cash, inventory, policy, and evidence limits. A fixed ACoS or TACoS is not the default optimization objective. It may be:
 
@@ -25,7 +25,7 @@ Express the profit floor with one or both of:
 ```
 
 The calculator converts the rate to `net_sales_revenue × minimum_post_ads_contribution_rate`. When both rate and amount are supplied, use the higher profit floor, then add the risk buffer. Recalculate the available ad spend, ACoS, and CPC ceilings whenever effective price, discount, tax, Amazon fees, landed cost, return allowance, CVR, or attribution basis changes.
-In a full-workflow package, each economics scenario preserves the upstream objective's three numeric inputs exactly: minimum contribution rate, per-order profit floor, and per-order risk buffer. A missing upstream value stays missing; a changed floor needs an evidenced upstream context revision before a traffic-ready package can use it.
+Whenever an upstream objective exists, each economics scenario preserves its three numeric inputs exactly: minimum contribution rate, per-order profit floor, and per-order risk buffer. This applies to both independent modes and to `ECONOMICS_READY` as well as traffic-ready packages. A missing upstream value stays missing; a changed floor needs an evidenced context revision before a ready result can use it. Standalone economics still does not require inventory, campaign architecture or other traffic-plan inputs merely to preserve these existing constraints.
 
 User willingness to accept risk does not change the arithmetic, authenticate evidence, release a claim, make inventory sellable, or grant execution authority. It can authorize only an explicitly bounded learning-loss envelope or a clearly scoped operational decision.
 

@@ -35,6 +35,9 @@ const server = http.createServer(async (req, res) => {
     item.optimizations.bidSettings = copy(value.optimizations.bidSettings);
     return json(207, { success: [{ index: 0, campaign: item }], error: [] });
   }
+  if (state.mode === `unknown-code:${resource}`) return json(207, { success: [], error: [{ index: 0, errors: [{ code: 'UNKNOWN_SERVER_FAILURE' }] }] });
+  const httpStatus = /^http-(408|409|429|499):/.exec(state.mode || '')?.[1];
+  if (httpStatus && state.mode.endsWith(`:${resource}`)) { res.setHeader('Retry-After', '0.001'); return json(Number(httpStatus), { message: 'Synthetic transport response' }); }
   const reject = state.mode === `reject:${resource}`;
   if (reject) return json(207, { success: [], error: [{ index: 0, errors: [{ code: 'PRODUCT_INELIGIBLE', message: 'Synthetic rejection' }] }] });
   const value = copy(body[resource][0]);
@@ -50,6 +53,7 @@ const server = http.createServer(async (req, res) => {
   if (state.mode !== `503-unapplied:${resource}`) state[resource].push(value);
   if (state.mode === `503-applied:${resource}` || state.mode === `503-unapplied:${resource}`) return json(503, { message: 'Synthetic ambiguous outcome' });
   if (state.mode === `no-id:${resource}`) return json(207, { success: [{ index: 0, [singular]: {} }], error: [] });
+  if (state.mode === `missing-errors:${resource}`) return json(207, { success: [{ index: 0, [singular]: value }] });
   return json(207, { success: [{ index: 0, [singular]: value }], error: [] });
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -304,4 +308,45 @@ test('unknown adGroup chain blocks ads alias, while reconciled failure permits o
   const duplicate = await prepareChange({ store: store.alias, changes: [{ op: create.id, ...input({ mode: 'ads', adGroupId: saved.items[0].sendResult.createdIds.adGroupId, products: [{ sku: 'RETRY-MISSING-SKU' }] }) }] });
   assert.equal(duplicate.ok, false); assert.match(duplicate.errors[0].error, /重复创建/);
   setSwitch(create.id, false);
+});
+
+
+test('unknown create error codes and incomplete success receipts cannot advance the chain', async () => {
+  for (const mode of ['unknown-code:campaigns', 'missing-errors:campaigns']) {
+    state.campaigns = []; state.adGroups = []; state.ads = []; state.calls = [];
+    const p = await prepare(); state.mode = mode;
+    const { result } = await run(p);
+    assert.equal(result.status, 'OUTCOME_UNKNOWN', mode);
+    assert.equal(writes().length, 1, 'Do not create children after an ambiguous parent receipt');
+    state.mode = null;
+  }
+});
+
+test('campaign readback requires the explicit approved auto-manage setting', async () => {
+  const p = await prepare(); const { result } = await run(p);
+  delete state.campaigns[0].autoCreationSettings.autoManageCampaign;
+  assert.equal((await create.readback(store, p.c, p.newValue, result)).match, false);
+});
+
+
+test('HTTP timeout and conflict remain unresolved and retain the duplicate-creation lock', async () => {
+  setSwitch(create.id, true);
+  for (const code of [408, 409, 499]) {
+    state.mode = `http-${code}:campaigns`; state.calls = [];
+    const changes = [{ op: create.id, ...input({ campaignName: `HTTP uncertainty ${code}` }) }];
+    const p = await prepareChange({ store: store.alias, changes });
+    const r = await executeChange({ proposalId: p.proposalId, hash: p.hash, approved: true });
+    assert.equal(r.status, 'OUTCOME_UNKNOWN', String(code));
+    assert.equal((await verifyChange({ proposalId: p.proposalId })).status, 'OUTCOME_UNKNOWN');
+    const retry = await prepareChange({ store: store.alias, changes: [{ ...changes[0], dailyBudget: 6 }] });
+    assert.equal(retry.ok, false); assert.match(retry.errors[0].error, /仍未核验/);
+    assert.equal(writes().length, 1, 'Neither verification nor retry proposal can resend the creation');
+  }
+});
+
+test('HTTP 429 follows the existing explicit-rate-rejection policy after bounded transport retries', async () => {
+  const p = await prepare(); state.mode = 'http-429:campaigns';
+  const { result } = await run(p);
+  assert.equal(result.status, 'FAILED');
+  assert.equal(writes().length, 3, 'Existing HTTP transport retries 429 twice; no child stage is sent');
 });

@@ -41,6 +41,9 @@ function out(obj, label = 'result') {
 const S = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false });
 const str = (d) => ({ type: 'string', description: d });
 const num = (d) => ({ type: 'number', description: d });
+const nonnegativeMoney = (d) => ({ ...num(d), minimum: 0 });
+const positiveMoney = (d) => ({ ...num(d), exclusiveMinimum: 0 });
+const percent = (d) => ({ ...num(d), minimum: 0, maximum: 100 });
 const bool = (d) => ({ type: 'boolean', description: d });
 const store = str('店铺别名（只接了一个店铺时可省略）');
 const mkt = str('站点代码，如 US、UK、DE、JP（省略则用店铺默认站点）');
@@ -259,15 +262,15 @@ export function buildTools(version) {
     // ---------------- 计算器 ----------------
     {
       name: 'xander_calc_ad_economics',
-      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC（CPC 向下取整到分）。含税站点给 vatPct，利润率底线按不含税净销售额算；金额底线与比例底线取更严格的。可选成本没给会按 0 假设并标 PROVISIONAL（偏乐观）；卖家确认确实没有的放进 notApplicable。缺核心输入返回 INCOMPLETE。状态：BLOCKED（没有广告空间）/ PROVISIONAL / READY_ESTIMATED。更完整的模型用技能里的 calculate_ad_economics.py（calculation_scope=ECONOMICS_ONLY）。',
+      description: '算单件订单广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC。保留分摊成本精度，只在展示时四舍五入，CPC 向下取整到分。输入百分比用0–100（15表示15%），ACoS也输出百分数。金额不得为负，售价/归因销售额须为正；退款收入损失不能超过税前收入。含税站点给 vatPct，利润率底线按不含税净销售额算；金额与比例底线取更严格者，再加风险缓冲。可选成本未知按0假设并标 PROVISIONAL；确认不适用可列入 notApplicable，不能同时传同名数值。缺核心输入为 INCOMPLETE；缺CVR仍可算ACoS但CPC为null，须看metricStatus。未给归因销售额时分母以售价代用并标明。结果不含库存/固定推广投入，不是写入或学习亏损授权；完整模型用技能里的 calculate_ad_economics.py。',
       inputSchema: S({
-        price: num('售价（含税站点填含税价）'), referralFeePct: num('佣金比例，如 15'), fbaFee: num('FBA 配送费'), purchaseCost: num('采购成本（同币种）'),
-        firstLegCost: num('头程（同币种）'), otherUnitCost: num('其他单件成本（包装、贴标、质检、关税、仓储等）'),
-        returnsCostPerUnit: num('退货非收入损耗/件'), refundLossPerUnit: num('预计退款收入损失/件'),
-        notApplicable: { type: 'array', items: { type: 'string', enum: ['otherUnitCost', 'returnsCostPerUnit', 'refundLossPerUnit'] }, description: '卖家确认不适用的可选成本' },
-        vatPct: num('含税站点的增值税率，如 20（美国不填）'), attributedSalesPerOrder: num('每单广告归因销售额（默认 = 售价）'),
-        targetProfitPerUnit: num('每件最低利润'), targetMarginPct: num('最低利润率%（按不含税净销售额）'), riskBufferPerUnit: num('额外风险缓冲/件'),
-        cvrPct: num('广告转化率%'),
+        price: positiveMoney('售价（含税站点填含税价）'), referralFeePct: percent('佣金比例，如 15'), fbaFee: nonnegativeMoney('FBA 配送费'), purchaseCost: nonnegativeMoney('采购成本（同币种）'),
+        firstLegCost: nonnegativeMoney('头程（同币种）'), otherUnitCost: nonnegativeMoney('其他单件成本（包装、贴标、质检、关税、仓储等）'),
+        returnsCostPerUnit: nonnegativeMoney('退货非收入损耗/件'), refundLossPerUnit: nonnegativeMoney('预计退款收入损失/件'),
+        notApplicable: { type: 'array', items: { type: 'string', enum: ['otherUnitCost', 'returnsCostPerUnit', 'refundLossPerUnit'] }, description: '卖家确认不适用的可选成本；同名字段不能同时出现，确认0成本时可直接填0' },
+        vatPct: percent('含税站点的增值税率，如 20（美国不填，未给时不扣VAT）'), attributedSalesPerOrder: positiveMoney('同一推广商品、同一单件订单口径的每单广告归因销售额；未给时用售价代用，不能用跨商品/halo总销售额'),
+        targetProfitPerUnit: nonnegativeMoney('每件最低利润'), targetMarginPct: percent('最低利润率%（按不含税净销售额）'), riskBufferPerUnit: nonnegativeMoney('额外风险缓冲/件'),
+        cvrPct: percent('广告转化率百分数（10表示10%）；缺失不给CPC，0表示明确的零转化情景'),
       }),
       annotations: LOCAL_READ,
       async handler(a) { return calc.adEconomics(a); },
@@ -393,7 +396,7 @@ export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊
 - 会话开始先调 xander_status。所有数据只在用户本机。
 - 读数据、计算、记本地档案可直接做；改亚马逊必须：xander_prepare_change → 把表格给用户看并取得明确批准 → xander_execute_change → 结果核对。
 - 写入开关默认全关，只有用户能在 \`xander panel\` 打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
-- 新建对象默认暂停；多步创建可能部分成功。未知结果只核验，不能换提案重提。
+- 新建活动、广告组和广告商品默认暂停；新增关键词的启用状态按精确提案核对。多步创建可能部分成功。未知结果只核验，不能换提案重提。
 - 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。
 - 优惠券只有准备、网页交接与官方只读查询。HANDOFF_READY不代表已提交。宿主电脑操控仅在有工具且用户允许前台操作时使用，不强依赖紫鸟。
 - 未知数据保持未知，不当 0；模拟结果标注 SIMULATED。`;

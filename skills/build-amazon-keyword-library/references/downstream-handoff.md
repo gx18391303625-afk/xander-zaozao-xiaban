@@ -89,6 +89,8 @@
 - `role_reason / missing_evidence / release_gate / evidence_ids`。
 - `current_stage_eligible`；若 `library_role=LATER_STAGE_RELEVANT` 且为 `true`，还必须带 `stage_eligibility_basis.stage_id / evaluated_at / basis_type=CURRENT_OBSERVED_STAGE / evidence_ids / operating_context_id`。
 
+这些资格字段及 `stage_eligibility_basis` 经 Listing 交接到广告时继续原样保留。广告可以另作投放决定，但不能把上游 `false` 改为 `true`；需改变研究资格时先更新有证据的词库快照。阶段依据必须对应 `operating_context.current_stage`，证据 ID 来自该当前观察，评估时间不能早于观察或晚于交接捕获时间。旧 `current_stage_evidence_ids` 仅可保留为完整阶段依据中 `evidence_ids` 的一致别名，不能单独释放一个词。
+
 不得只给一个关键词列表。第三步需要知道“为什么能用、可以放在哪里复核、哪些绝对不能写”。
 
 ## 运营上下文交接

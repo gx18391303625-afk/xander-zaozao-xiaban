@@ -95,11 +95,13 @@ If both fields exist and differ, preserve both, mark the lineage `CONFLICT`, and
 
 Use `lineage_mode`:
 
-- `FULL_WORKFLOW`: all upstream IDs are expected.
+- `FULL_WORKFLOW`: all upstream IDs are expected; retained for existing historical full-workflow packages, not newly created operations work after selection was frozen.
 - `INDEPENDENT_EXISTING`: an existing ASIN/account audit began outside the workflow. Do not invent upstream IDs; require marketplace, account scope, ASIN/SKU IDs, report/source IDs, and a reason.
 - `INDEPENDENT_NEW`: a new-product plan began outside the workflow but has a traceable verified product/offer/Listing/economics evidence package. Do not invent upstream IDs.
 
 Every independent package includes `independent_scope.reason`, `source_scope_id`, and non-empty `source_artifact_ids`. `INDEPENDENT_EXISTING` is valid only with `EXISTING_PRODUCT_OPTIMIZATION`; `INDEPENDENT_NEW` is valid only with `NEW_PRODUCT_LAUNCH`.
+
+Independent mode removes requirements for genuinely absent stages only. When an operating context exists, every supplied upstream snapshot preserves its context ID and canonical hash, and the economics inputs preserve its profit constraints. A snapshot that references an operating context cannot be reused while that envelope is omitted. These preservation checks also block `ECONOMICS_READY` when violated; they do not add traffic-plan input requirements to standalone economics. A genuinely standalone package with no prior context may omit it without inventing one.
 
 ## Canonical strategy package
 
@@ -340,6 +342,8 @@ Artifact type is semantic, not decorative. Amazon-only account proof uses `amazo
 
 For `FULL_WORKFLOW`, every upstream snapshot repeats the exact top-level `project_id` and `candidate_id`, plus its own matching run/version ID, the same `operating_context_id`, and the same `operating_context_sha256`. The validator independently hashes the actual envelope, so a reused ID cannot conceal a silent change to profit, price, routes, locks, or risks. Traffic-ready Listing metadata also requires a non-placeholder `path` and timezone-aware `captured_at` no later than the strategy capture. Missing or mismatched nested lineage cannot be repaired by a top-level ID alone.
 
+The context ID/hash and profit-constraint checks also apply to supplied upstream artifacts in both independent modes. The selection-stage ID requirement remains specific to historical full-workflow packages.
+
 ### Readiness gaps
 
 Traffic-ready packages use explicit arrays for `unknowns`, `source_coverage.gaps`, and each performance row's `coverage_gaps`; `policy_snapshot.unverified_boundaries` must be empty. Gap rows are structured and source-linked:
@@ -481,6 +485,8 @@ When `review_compliance.methods` includes `REQUEST_A_REVIEW`, eligibility is `VE
 
 Keep `library_role`, upstream source/evidence IDs, original text, and any upstream eligibility/claim fields unchanged. Every upstream keyword row carries non-placeholder `keyword_original`, and every downstream keyword decision carries non-placeholder `keyword_original`, `intent`, and `objective` plus closed `product_fit= DIRECT | CONDITIONAL | WRONG`. Both `source_ids` and `evidence_ids` are non-empty arrays of meaningful strings; nulls, objects, arrays, and placeholders are invalid members. `ad_role` is a downstream decision, not a correction to the keyword library. Every included keyword target uses exactly one canonical positive match expression: `BROAD`, `PHRASE`, or `EXACT`; missing, placeholder, negative, object, and array values are invalid. The declared target `data_class` cannot outrank its semantically relevant cited artifacts: keyword evidence declares `KEYWORD_TARGET_EVIDENCE` and lists the exact `source_keyword_id` in `keyword_scope_ids`; product evidence declares `PRODUCT_TARGET_EVIDENCE` and lists the exact ASIN in `asin_scope_ids`. An unrelated first-party account, inventory, or economics source cannot elevate the target class.
 
+The canonical preserved eligibility fields are `listing_indexing_eligible`, `front_end_copy_eligible`, `downstream_review_eligible`, `current_stage_eligible`, and `stage_eligibility_basis`. Eligibility flags are booleans or null; every supplied field must remain present downstream with the same value, including an explicit null, and cannot be upgraded. A controlled test of a review-only keyword requires upstream and downstream `downstream_review_eligible=true` plus the separate advertising review. An included `LATER_STAGE_RELEVANT` term requires upstream and downstream `current_stage_eligible=true` with identical canonical `stage_eligibility_basis`: `basis_type=CURRENT_OBSERVED_STAGE`, the matching context and current stage IDs, a timezone-aware evaluation after the current observation and no later than capture, and non-empty evidence IDs present in `operating_context.current_stage.evidence_ids`. An unknown evidence label or a planned phase cannot release it. Legacy `current_stage_evidence_ids` may remain only as an exact mirror of the canonical evidence list, with a warning; it is not an alternate release mechanism.
+
 ### Product target
 
 ```json
@@ -554,7 +560,7 @@ For an included target, both caps are positive, incremental loss does not exceed
     "modeled_loss_at_cap": null,
     "source_ids": ["SRC-APPROVAL-001"]
   },
-  "bid_strategy": "runtime-supported value",
+  "bid_strategy": "SALES_DOWN_ONLY",
   "entry_gates": ["GATE-ENTRY-001"],
   "exit_gates": ["GATE-EXIT-001"],
   "rollback_conditions": ["ROLLBACK-001"],
@@ -564,6 +570,8 @@ For an included target, both caps are positive, incremental loss does not exceed
 ```
 
 The campaign architecture row is a closed schema. Unknown fields, hidden delivery/reach/supply/inventory controls, or any nested value that enables or implies off-Amazon delivery fail closed. `campaign_plan_id`, objective, bid strategy, policy/account source IDs, and `evidence_ids` use meaningful non-placeholder strings. `entry_gates`, `exit_gates`, and `rollback_conditions` are non-empty arrays of meaningful control IDs or statements; evidence arrays cannot be filled with nulls, objects, or placeholders.
+
+For Sponsored Products, new settings use the executor-supported canonical strategies `MANUAL`, `SALES_DOWN_ONLY`, or `SALES_UP_AND_DOWN`. Existing-product plans may describe preservation of an already verified `RULE_BASED` strategy; a manifest may preserve that current value unchanged or leave it for one of the three supported strategies, but cannot create it or change another value into it. These checks cover `bidStrategy`, `bidding.strategy`, and `dynamicBidding.strategy`; contradictory aliases and free-text instructions are invalid. SB/SD retain their separately verified product-specific strategy contract, not the SP enum. Placement and daypart instructions must not be hidden inside a strategy string.
 
 The user requested Amazon onsite only. Sponsored Products itself is not proof of onsite scope: its reach may extend beyond Amazon unless the current account exposes and applies the Amazon-only control. Every campaign therefore needs both (a) an `official_policy` artifact scoped to the marketplace/ad product and (b) a first-party `amazon_ads_account_snapshot` scoped to the exact marketplace/account that explicitly records the selected ad product and its verified Amazon-only control, plus a verification timestamp. If either is missing, exclude that structure rather than calling it onsite. `placement_verified_at` must fall within the 24-hour package safety window.
 
@@ -651,6 +659,8 @@ For a traffic-ready plan, include exactly one row for each of the selected mode'
 ```
 
 The advertising Skill does not rewrite or mutate the upstream artifact.
+
+Current handback destinations are `write-amazon-listing`, `build-amazon-keyword-library`, `analyze-amazon-competitors`, `reconcile-amazon-profit`, `plan-amazon-replenishment`, `PRODUCT_LEVEL_USER_REVIEW`, and `EXTERNAL_OPERATIONAL_BLOCKER`. Use the profit and replenishment Skills for their existing operational scopes; use user review for product-level positioning, compliance, or continuation decisions outside those scopes. `select-amazon-products` is accepted with a deprecation warning only when auditing a historical `FULL_WORKFLOW` package with its actual selection lineage; it is invalid in new independent packages and does not authorize invoking selection.
 
 ## State and execution contract
 
