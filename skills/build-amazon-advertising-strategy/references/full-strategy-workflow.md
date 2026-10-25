@@ -201,7 +201,9 @@ If evidence points to another root cause, do not compensate with bids. Create a 
 - `$write-amazon-listing` for Listing/offer-message problems;
 - `$build-amazon-keyword-library` for query-role or relevance gaps;
 - `$analyze-amazon-competitors` for competitor/price/rating-barrier changes;
-- product-level issues (non-viable economics, supply, compliance, or product-market fit): product selection is frozen in this plugin — explain the evidence to the user as a product-level decision outside this plugin instead of handing back to `$select-amazon-products`.
+- `$reconcile-amazon-profit` for cost, fee, contribution-basis, or period-reconciliation questions;
+- `$plan-amazon-replenishment` for current-offer coverage, replenishment quantity, or route-feasibility questions;
+- `PRODUCT_LEVEL_USER_REVIEW` for product positioning, compliance, or continuation decisions outside those operational scopes. Selection is frozen; explain the evidence to the user without making a product-entry decision.
 
 The handback diagnoses and cites evidence; it does not modify the upstream artifact itself.
 

@@ -109,6 +109,9 @@ SOURCE_DATA_CLASSES = {
     "HYPOTHESIS",
 }
 TARGET_DATA_CLASSES = SOURCE_DATA_CLASSES - {"OFFICIAL_POLICY"}
+CANONICAL_KEYWORD_ELIGIBILITY_FIELDS = (
+    "listing_indexing_eligible", "front_end_copy_eligible", "downstream_review_eligible", "current_stage_eligible",
+)
 TARGET_SUPPORT_CLASSES = {
     "FIRST_PARTY": {"FIRST_PARTY"},
     "VERIFIED_PRODUCT": {"FIRST_PARTY", "VERIFIED_PRODUCT"},
@@ -121,6 +124,10 @@ HAND_BACK_DESTINATIONS = {
     "write-amazon-listing",
     "build-amazon-keyword-library",
     "analyze-amazon-competitors",
+    "plan-amazon-replenishment",
+    "reconcile-amazon-profit",
+    "PRODUCT_LEVEL_USER_REVIEW",
+    # Read historical full-workflow packages without reviving selection routing.
     "select-amazon-products",
     "EXTERNAL_OPERATIONAL_BLOCKER",
 }
@@ -310,6 +317,8 @@ TARGETING_TYPES_BY_AD_PRODUCT = {
     "SPONSORED_BRANDS": {"MANUAL_KEYWORD", "MANUAL_PRODUCT"},
     "SPONSORED_DISPLAY": {"MANUAL_PRODUCT", "AUDIENCE", "CONTEXTUAL_PRODUCT"},
 }
+SP_SETTABLE_BID_STRATEGIES = {"MANUAL", "SALES_DOWN_ONLY", "SALES_UP_AND_DOWN"}
+SP_OBSERVED_BID_STRATEGIES = SP_SETTABLE_BID_STRATEGIES | {"RULE_BASED"}
 SOURCE_TARGET_KIND_BY_TARGETING_TYPE = {
     "MANUAL_KEYWORD": "KEYWORD",
     "MANUAL_PRODUCT": "PRODUCT",
@@ -747,6 +756,30 @@ def unallowed_change_payload_fields(value: Any, path: str = "", parent_key: str 
 
 def normalized_payload_root_keys(value: dict[str, Any]) -> set[str]:
     return {re.sub(r"[^a-z0-9]", "", str(key).lower()) for key in value}
+
+
+def payload_bid_strategies(value: dict[str, Any]) -> list[Any]:
+    """Read the supported normalized strategy aliases without treating prose as configuration."""
+    normalized = {re.sub(r"[^a-z0-9]", "", str(key).lower()): child for key, child in value.items()}
+    strategies = [normalized["bidstrategy"]] if "bidstrategy" in normalized else []
+    for key in ("bidding", "dynamicbidding"):
+        nested = normalized.get(key)
+        if isinstance(nested, dict):
+            strategies.extend(child for nested_key, child in nested.items() if re.sub(r"[^a-z0-9]", "", str(nested_key).lower()) == "strategy")
+    return strategies
+
+
+def sp_strategy_change_invalid(action: Any, current_value: dict[str, Any], proposed_value: dict[str, Any]) -> bool:
+    current = payload_bid_strategies(current_value)
+    proposed = payload_bid_strategies(proposed_value)
+    final = payload_bid_strategies(deep_merge(current_value, proposed_value))
+    if any(not is_allowed(value, SP_OBSERVED_BID_STRATEGIES) for value in current + proposed + final):
+        return True
+    if any(len(set(values)) > 1 for values in (current, proposed, final)):
+        return True
+    if "RULE_BASED" in proposed and (action != "UPDATE" or not current or set(current) != {"RULE_BASED"}):
+        return True
+    return False
 
 
 def payload_scalar_semantics_invalid(value: Any, key: str = "", parent_key: str = "") -> bool:
@@ -1451,25 +1484,31 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                     gap("UPSTREAM_SNAPSHOT_ID_GAP", location, f"Every full-workflow snapshot requires a non-placeholder {field}")
                 elif value != data.get(field):
                     add("ERROR" if traffic_ready_status else "WARNING", "UPSTREAM_ID_MISMATCH", location, f"Upstream {field} does not match the top-level lineage")
+    # Independent means absent selection stages are optional, not that supplied
+    # upstream constraints may be replaced or silently detached.
+    for snapshot, snapshot_name in (
+        (selection_snapshot, "selection"),
+        (competitor_snapshot, "competitor_lock"),
+        (keyword_snapshot, "keyword_library"),
+        (listing_release, "listing_release"),
+    ):
+        if not snapshot and lineage_mode != "FULL_WORKFLOW":
+            continue
         if nonplaceholder(operating_context_id):
-            for snapshot, snapshot_name in (
-                (selection_snapshot, "selection"),
-                (competitor_snapshot, "competitor_lock"),
-                (keyword_snapshot, "keyword_library"),
-                (listing_release, "listing_release"),
-            ):
-                snapshot_context_id = snapshot.get("operating_context_id")
-                location = f"upstream_snapshots.{snapshot_name}.operating_context_id"
-                if not nonplaceholder(snapshot_context_id):
-                    add("ERROR" if traffic_ready_status else "WARNING", "OPERATING_CONTEXT_LINEAGE_MISSING", location, "Every full-workflow snapshot must preserve operating_context_id")
-                elif snapshot_context_id != operating_context_id:
-                    add("ERROR", "OPERATING_CONTEXT_LINEAGE_MISMATCH", location, "Upstream operating_context_id does not match the strategy envelope")
-                snapshot_context_hash = snapshot.get("operating_context_sha256")
-                hash_location = f"upstream_snapshots.{snapshot_name}.operating_context_sha256"
-                if not nonplaceholder(snapshot_context_hash):
-                    add("ERROR" if traffic_ready_status else "WARNING", "OPERATING_CONTEXT_HASH_LINEAGE_MISSING", hash_location, "Every full-workflow snapshot must preserve operating_context_sha256")
-                elif snapshot_context_hash != computed_operating_context_hash:
-                    add("ERROR", "OPERATING_CONTEXT_HASH_LINEAGE_MISMATCH", hash_location, "Upstream operating_context_sha256 does not match the strategy envelope")
+            snapshot_context_id = snapshot.get("operating_context_id")
+            location = f"upstream_snapshots.{snapshot_name}.operating_context_id"
+            if not nonplaceholder(snapshot_context_id):
+                gap("OPERATING_CONTEXT_LINEAGE_MISSING", location, "Every supplied upstream snapshot must preserve operating_context_id")
+            elif snapshot_context_id != operating_context_id:
+                add("ERROR", "OPERATING_CONTEXT_LINEAGE_MISMATCH", location, "Upstream operating_context_id does not match the strategy envelope")
+            snapshot_context_hash = snapshot.get("operating_context_sha256")
+            hash_location = f"upstream_snapshots.{snapshot_name}.operating_context_sha256"
+            if not nonplaceholder(snapshot_context_hash):
+                gap("OPERATING_CONTEXT_HASH_LINEAGE_MISSING", hash_location, "Every supplied upstream snapshot must preserve operating_context_sha256")
+            elif snapshot_context_hash != computed_operating_context_hash:
+                add("ERROR", "OPERATING_CONTEXT_HASH_LINEAGE_MISMATCH", hash_location, "Upstream operating_context_sha256 does not match the strategy envelope")
+        elif snapshot.get("operating_context_id") is not None or snapshot.get("operating_context_sha256") is not None:
+            gap("OPERATING_CONTEXT_MISSING", "operating_context", f"The supplied {snapshot_name} snapshot references an operating context that must be preserved")
 
     if traffic_ready_status:
         if not nonplaceholder(listing_release.get("path")):
@@ -1533,6 +1572,9 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             add("ERROR", "UPSTREAM_KEYWORD_ROLE_INVALID", location, "Unknown upstream library_role")
         if not nonplaceholder(row.get("keyword_original")):
             gap("UPSTREAM_KEYWORD_TEXT_MISSING", f"{location}.keyword_original", "Every upstream keyword requires its original non-placeholder text")
+        for field in CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
+            if row.get(field) is not None and not isinstance(row[field], bool):
+                add("ERROR", "KEYWORD_ELIGIBILITY_INVALID", f"{location}.{field}", "Canonical keyword eligibility must be boolean or null")
         for field in ("source_ids", "evidence_ids"):
             values = row.get(field)
             if not isinstance(values, list) or not values or any(not nonplaceholder(value) for value in values):
@@ -1823,7 +1865,7 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             add("ERROR", "ECONOMICS_MODE_MISMATCH", location, "Economics data_mode does not match strategy mode")
         if valid_scope_ids and item.get("scope_id") not in valid_scope_ids:
             add("ERROR", "ECONOMICS_SCOPE_MISMATCH", location, "Economics scope_id must match the strategy ASIN or SKU")
-        if lineage_mode == "FULL_WORKFLOW" and operating_context:
+        if operating_context:
             preserved_profit = operating_context.get("profit_objective")
             if isinstance(preserved_profit, dict):
                 for field in ("minimum_post_ads_contribution_rate", "target_profit_per_order", "risk_buffer_per_order"):
@@ -2005,6 +2047,9 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                 add("ERROR", "KEYWORD_CONTENT_FIELD_MISSING", f"{location}.{field}", f"{field} must be a non-placeholder string")
         if not is_allowed(target.get("product_fit"), {"DIRECT", "CONDITIONAL", "WRONG"}):
             add("ERROR", "KEYWORD_PRODUCT_FIT_INVALID", f"{location}.product_fit", "product_fit must be DIRECT, CONDITIONAL, or WRONG")
+        for field in CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
+            if target.get(field) is not None and not isinstance(target[field], bool):
+                add("ERROR", "KEYWORD_ELIGIBILITY_INVALID", f"{location}.{field}", "Canonical keyword eligibility must be boolean or null")
         source_keyword_id = target.get("source_keyword_id")
         if not nonplaceholder(source_keyword_id):
             add("ERROR", "SOURCE_KEYWORD_ID_MISSING", location, "Every keyword decision requires source_keyword_id")
@@ -2047,7 +2092,10 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
         }):
             add("ERROR", "UPSTREAM_KEYWORD_EVIDENCE_MISMATCH", location, "Downstream keyword must preserve all upstream source and evidence IDs")
         if upstream_keyword is not None:
-            for preserved_field in ("keyword_original", "eligibility_flags", "claim_gate", "eligible_for_visible_copy", "product_fit"):
+            for preserved_field in (
+                "keyword_original", "eligibility_flags", "claim_gate", "eligible_for_visible_copy", "product_fit",
+                "stage_eligibility_basis",
+            ) + CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
                 if preserved_field in upstream_keyword and target.get(preserved_field) != upstream_keyword.get(preserved_field):
                     add("ERROR", "UPSTREAM_KEYWORD_FIELD_MISMATCH", location, f"Downstream keyword changed preserved field {preserved_field}")
         if decision == "INCLUDE":
@@ -2056,11 +2104,42 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             if is_allowed(role, BLOCKED_POSITIVE_KEYWORD_ROLES):
                 add("ERROR", "KEYWORD_ROLE_POSITIVE_BLOCKED", location, f"library_role {role!r} cannot be a positive ad target")
             if is_allowed(role, REVIEW_ONLY_KEYWORD_ROLES):
-                if target.get("downstream_review_eligible") is not True or target.get("ad_eligibility_review") != "APPROVED_CONTROLLED_TEST":
+                if upstream_keyword is None or upstream_keyword.get("downstream_review_eligible") is not True or target.get("downstream_review_eligible") is not True or target.get("ad_eligibility_review") != "APPROVED_CONTROLLED_TEST":
                     add("ERROR", "KEYWORD_REVIEW_GATE_MISSING", location, f"{role} requires downstream eligibility and an approved controlled-test review")
             if role == "LATER_STAGE_RELEVANT":
-                if target.get("current_stage_eligible") is not True or not target.get("current_stage_evidence_ids"):
+                if upstream_keyword is None or upstream_keyword.get("current_stage_eligible") is not True or target.get("current_stage_eligible") is not True:
                     add("ERROR", "LATER_STAGE_NOT_RELEASED", location, "Current-stage evidence is required")
+                stage = operating_context.get("current_stage")
+                stage = stage if isinstance(stage, dict) else {}
+                basis = target.get("stage_eligibility_basis")
+                if upstream_keyword is None or not isinstance(upstream_keyword.get("stage_eligibility_basis"), dict):
+                    add("ERROR", "KEYWORD_STAGE_BASIS_MISSING", location, "Current-stage release requires canonical stage evidence in the upstream keyword record")
+                if not isinstance(basis, dict):
+                    add("ERROR", "KEYWORD_STAGE_BASIS_MISSING", location, "Current-stage eligibility requires the canonical stage_eligibility_basis")
+                else:
+                    if basis.get("basis_type") != "CURRENT_OBSERVED_STAGE":
+                        add("ERROR", "KEYWORD_STAGE_BASIS_TYPE_INVALID", location, "Stage eligibility must use CURRENT_OBSERVED_STAGE")
+                    if not nonplaceholder(stage.get("stage_id")) or basis.get("stage_id") != stage.get("stage_id"):
+                        add("ERROR", "KEYWORD_STAGE_ID_MISMATCH", location, "Stage eligibility must match operating_context.current_stage.stage_id")
+                    if not nonplaceholder(operating_context_id) or basis.get("operating_context_id") != operating_context_id:
+                        add("ERROR", "KEYWORD_STAGE_CONTEXT_MISMATCH", location, "Stage eligibility must match the preserved operating context")
+                    evaluated_at = timestamp(basis.get("evaluated_at"), f"{location}.stage_eligibility_basis.evaluated_at")
+                    observed_at = timestamp(stage.get("observed_at"), "operating_context.current_stage.observed_at") if stage else None
+                    if evaluated_at is not None and ((package_captured_at is not None and evaluated_at > package_captured_at + MAX_CLOCK_SKEW) or (observed_at is not None and evaluated_at < observed_at)):
+                        add("ERROR", "KEYWORD_STAGE_TIME_INVALID", location, "Stage evaluation must follow the current observation and cannot postdate the strategy capture")
+                    stage_evidence = stage.get("evidence_ids", [])
+                    valid_stage_evidence = {item for item in stage_evidence if nonplaceholder(item)} if isinstance(stage_evidence, list) else set()
+                    basis_evidence = basis.get("evidence_ids")
+                    if not isinstance(basis_evidence, list) or not basis_evidence or any(not nonplaceholder(item) for item in basis_evidence):
+                        add("ERROR", "KEYWORD_STAGE_EVIDENCE_MISSING", location, "Stage eligibility requires non-placeholder current-stage evidence IDs")
+                    elif not set(basis_evidence) <= valid_stage_evidence:
+                        add("ERROR", "KEYWORD_STAGE_EVIDENCE_MISMATCH", location, "Stage eligibility evidence must exist in the preserved current-stage observation")
+                    if "current_stage_evidence_ids" in target:
+                        legacy_evidence = target["current_stage_evidence_ids"]
+                        if not isinstance(legacy_evidence, list) or any(not nonplaceholder(item) for item in legacy_evidence) or not isinstance(basis_evidence, list) or legacy_evidence != basis_evidence:
+                            add("ERROR", "KEYWORD_STAGE_LEGACY_ALIAS_MISMATCH", location, "Legacy current_stage_evidence_ids must exactly mirror canonical stage_eligibility_basis.evidence_ids")
+                        else:
+                            add("WARNING", "LEGACY_KEYWORD_STAGE_EVIDENCE", location, "Keep stage_eligibility_basis as authority; current_stage_evidence_ids is only a compatibility alias")
             proposed_bid = number(target.get("proposed_bid"), f"{location}.proposed_bid")
             bid_ceiling = number(target.get("bid_ceiling"), f"{location}.bid_ceiling")
             basis = target.get("ceiling_basis")
@@ -2235,6 +2314,11 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                 add("ERROR", "CAMPAIGN_FIELD_MISSING", location, f"{field} is required")
         if not nonplaceholder(row.get("bid_strategy")):
             add("ERROR", "CAMPAIGN_BID_STRATEGY_INVALID", f"{location}.bid_strategy", "bid_strategy must be a non-placeholder normalized planning string")
+        elif row.get("ad_product") == "SPONSORED_PRODUCTS":
+            if not is_allowed(row.get("bid_strategy"), SP_OBSERVED_BID_STRATEGIES):
+                add("ERROR", "CAMPAIGN_BID_STRATEGY_INVALID", f"{location}.bid_strategy", "Sponsored Products requires a supported canonical bidding strategy, not free text")
+            elif row.get("bid_strategy") == "RULE_BASED" and strategy_mode != "EXISTING_PRODUCT_OPTIMIZATION":
+                add("ERROR", "CAMPAIGN_BID_STRATEGY_INVALID", f"{location}.bid_strategy", "RULE_BASED may only describe preserving an already-existing verified strategy; it cannot be planned as a new setting")
         if not isinstance(row.get("evidence_ids"), list) or not row.get("evidence_ids") or any(not nonplaceholder(item) for item in row.get("evidence_ids", [])):
             add("ERROR", "CAMPAIGN_EVIDENCE_INVALID", f"{location}.evidence_ids", "Campaign rows require a non-empty array of evidence IDs")
         if not is_allowed(row.get("budget_period"), {"DAILY", "LIFETIME", "OTHER_VERIFIED"}):
@@ -3415,6 +3499,11 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             handback_ids.add(handback_id)
         if not is_allowed(handback.get("destination_skill"), HAND_BACK_DESTINATIONS):
             add("ERROR", "HANDBACK_DESTINATION_INVALID", location, "Unknown handback destination")
+        elif handback.get("destination_skill") == "select-amazon-products":
+            if lineage_mode != "FULL_WORKFLOW" or not nonplaceholder(data.get("selection_run_id")) or not selection_snapshot:
+                add("ERROR", "FROZEN_SELECTION_HANDBACK", location, "New independent work must use a current operations Skill or PRODUCT_LEVEL_USER_REVIEW; product selection is frozen")
+            else:
+                add("WARNING", "LEGACY_SELECTION_HANDBACK", location, "Historical full-workflow selection handback retained for audit only; route new product-level review to the user")
         for field in ("root_cause_class", "diagnosis", "requested_review", "advertising_interim_action", "status"):
             if not nonempty(handback.get(field)):
                 add("ERROR", "HANDBACK_FIELD_MISSING", location, f"{field} is required")
@@ -3496,6 +3585,8 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                     add("ERROR", "CHANGE_CAMPAIGN_NOT_AMAZON_ONLY", location, "Referenced campaign plan is not verified Amazon-only")
                 elif payload_objects_valid:
                     entity_type = operation.get("entity_type")
+                    if entity_type == "CAMPAIGN" and campaign_row.get("ad_product") == "SPONSORED_PRODUCTS" and sp_strategy_change_invalid(operation.get("action"), operation["current_value"], operation["proposed_value"]):
+                        add("ERROR", "CHANGE_BID_STRATEGY_INVALID", location, "Sponsored Products can set only MANUAL, SALES_DOWN_ONLY, or SALES_UP_AND_DOWN; existing RULE_BASED may only be preserved unchanged")
                     targeting_type = campaign_row.get("targeting_type")
                     keyword_entities = {"KEYWORD", "NEGATIVE_KEYWORD"}
                     product_entities = {"PRODUCT_TARGET", "NEGATIVE_PRODUCT_TARGET"}

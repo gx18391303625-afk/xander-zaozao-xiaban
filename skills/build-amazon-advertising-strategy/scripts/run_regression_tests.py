@@ -658,7 +658,7 @@ def valid_strategy(existing: bool = False) -> dict[str, Any]:
                 "proposed_budget": 10,
                 "phase_spend_cap": 100,
                 "learning_loss_allocations": {},
-                "bid_strategy": "runtime-verified setting",
+                "bid_strategy": "SALES_DOWN_ONLY",
                 "entry_gates": ["listing and economics ready"],
                 "exit_gates": ["decision evidence complete"],
                 "rollback_conditions": ["loss or inventory gate"],
@@ -702,6 +702,48 @@ def valid_strategy(existing: bool = False) -> dict[str, Any]:
 
 def finding_codes(result: dict[str, Any]) -> set[str]:
     return {row["code"] for row in result["findings"]}
+
+
+def independent_strategy(existing: bool = False) -> dict[str, Any]:
+    package = valid_strategy(existing)
+    package["lineage_mode"] = "INDEPENDENT_EXISTING" if existing else "INDEPENDENT_NEW"
+    for field in ("project_id", "selection_run_id", "candidate_id"):
+        package.pop(field, None)
+    package["upstream_snapshots"].pop("selection", None)
+    for snapshot in package["upstream_snapshots"].values():
+        for field in ("project_id", "selection_run_id", "candidate_id"):
+            snapshot.pop(field, None)
+    package["independent_scope"] = {
+        "reason": "Selection is frozen; retain supplied operations evidence",
+        "source_scope_id": "SKU-001",
+        "source_artifact_ids": ["SRC-SELECT-001"],
+    }
+    return package
+
+
+def release_later_stage_keyword(package: dict[str, Any]) -> None:
+    package["operating_context"]["current_stage"] = {
+        "stage_id": "CURRENT-STAGE-001",
+        "observed_at": iso(FIXTURE_CAPTURED),
+        "evidence_ids": ["E-CURRENT-STAGE-001"],
+    }
+    context_hash = validator.operating_context_sha256(package["operating_context"])
+    package["operating_context_sha256"] = context_hash
+    for snapshot in package["upstream_snapshots"].values():
+        snapshot["operating_context_sha256"] = context_hash
+    fields = {
+        "library_role": "LATER_STAGE_RELEVANT",
+        "current_stage_eligible": True,
+        "stage_eligibility_basis": {
+            "stage_id": "CURRENT-STAGE-001",
+            "evaluated_at": iso(FIXTURE_CAPTURED),
+            "basis_type": "CURRENT_OBSERVED_STAGE",
+            "evidence_ids": ["E-CURRENT-STAGE-001"],
+            "operating_context_id": "CTX-001",
+        },
+    }
+    package["upstream_snapshots"]["keyword_library"]["keywords"][0].update(copy.deepcopy(fields))
+    package["keyword_targets"][0].update(copy.deepcopy(fields))
 
 
 def package_binding_result(package: dict[str, Any]) -> dict[str, Any]:
@@ -3068,6 +3110,204 @@ def run() -> int:
             package = valid_strategy(existing=True)
             package["performance_snapshots"][0]["metrics"][field] = bad
             assert "PERFORMANCE_METRIC_INVALID" in finding_codes(validator.validate(package))
+
+    @test("independent new and existing modes preserve supplied upstream context references")
+    def _() -> None:
+        for existing in (False, True):
+            package = independent_strategy(existing)
+            assert validator.validate(package)["plan_ready"] is True
+            package["upstream_snapshots"]["listing_release"]["operating_context_id"] = "CTX-OTHER"
+            package["upstream_snapshots"]["listing_release"]["operating_context_sha256"] = "sha256:" + "f" * 64
+            result = validator.validate(package)
+            assert {"OPERATING_CONTEXT_LINEAGE_MISMATCH", "OPERATING_CONTEXT_HASH_LINEAGE_MISMATCH"} <= finding_codes(result)
+            assert result["plan_ready"] is False
+
+    @test("independent mode cannot remove an operating context referenced upstream")
+    def _() -> None:
+        package = independent_strategy()
+        package.pop("operating_context")
+        package.pop("operating_context_sha256")
+        assert "OPERATING_CONTEXT_MISSING" in finding_codes(validator.validate(package))
+
+    @test("independent mode preserves all supplied profit floors")
+    def _() -> None:
+        for existing in (False, True):
+            package = independent_strategy(existing)
+            package["operating_context"]["profit_objective"]["target_profit_per_order"] = 25
+            context_hash = validator.operating_context_sha256(package["operating_context"])
+            package["operating_context_sha256"] = context_hash
+            for snapshot in package["upstream_snapshots"].values():
+                snapshot["operating_context_sha256"] = context_hash
+            result = validator.validate(package)
+            assert "ECONOMICS_PROFIT_OBJECTIVE_MISMATCH" in finding_codes(result)
+            assert result["plan_ready"] is False
+
+    @test("independent standalone inputs may omit a genuinely absent context")
+    def _() -> None:
+        package = independent_strategy()
+        package.pop("operating_context")
+        package.pop("operating_context_sha256")
+        for snapshot in package["upstream_snapshots"].values():
+            snapshot.pop("operating_context_id")
+            snapshot.pop("operating_context_sha256")
+        result = validator.validate(package)
+        assert result["plan_ready"] is True, result["findings"]
+
+    @test("canonical keyword eligibility cannot be changed downstream")
+    def _() -> None:
+        for field in validator.CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
+            package = independent_strategy()
+            package["upstream_snapshots"]["keyword_library"]["keywords"][0][field] = False
+            package["keyword_targets"][0][field] = True
+            assert "UPSTREAM_KEYWORD_FIELD_MISMATCH" in finding_codes(validator.validate(package)), field
+            package["keyword_targets"][0][field] = 0
+            assert "KEYWORD_ELIGIBILITY_INVALID" in finding_codes(validator.validate(package)), field
+
+    @test("unreleased later-stage keyword cannot self-release with invented evidence IDs")
+    def _() -> None:
+        for factory in (valid_strategy, independent_strategy):
+            package = factory()
+            package["upstream_snapshots"]["keyword_library"]["keywords"][0].update({"library_role": "LATER_STAGE_RELEVANT", "current_stage_eligible": False})
+            package["keyword_targets"][0].update({"library_role": "LATER_STAGE_RELEVANT", "current_stage_eligible": True, "current_stage_evidence_ids": ["E-UNREGISTERED"]})
+            result = validator.validate(package)
+            assert {"UPSTREAM_KEYWORD_FIELD_MISMATCH", "LATER_STAGE_NOT_RELEASED", "KEYWORD_STAGE_BASIS_MISSING"} <= finding_codes(result)
+            assert result["plan_ready"] is False
+
+    @test("canonical current-stage release is accepted without a legacy evidence alias")
+    def _() -> None:
+        for factory in (valid_strategy, independent_strategy):
+            package = factory()
+            release_later_stage_keyword(package)
+            result = validator.validate(package)
+            assert result["plan_ready"] is True, result["findings"]
+
+    @test("stage evidence must match the observed stage context time and evidence set")
+    def _() -> None:
+        cases = (
+            ("stage_id", "OTHER-STAGE", "KEYWORD_STAGE_ID_MISMATCH"),
+            ("operating_context_id", "OTHER-CONTEXT", "KEYWORD_STAGE_CONTEXT_MISMATCH"),
+            ("basis_type", "PLANNED_STAGE", "KEYWORD_STAGE_BASIS_TYPE_INVALID"),
+            ("evidence_ids", ["E-NOT-IN-STAGE"], "KEYWORD_STAGE_EVIDENCE_MISMATCH"),
+            ("evidence_ids", [{}], "KEYWORD_STAGE_EVIDENCE_MISSING"),
+            ("evaluated_at", iso(FIXTURE_CAPTURED - timedelta(days=1)), "KEYWORD_STAGE_TIME_INVALID"),
+            ("evaluated_at", iso(FIXTURE_CAPTURED + timedelta(days=1)), "KEYWORD_STAGE_TIME_INVALID"),
+        )
+        for field, value, code in cases:
+            package = independent_strategy()
+            release_later_stage_keyword(package)
+            for row in (package["upstream_snapshots"]["keyword_library"]["keywords"][0], package["keyword_targets"][0]):
+                row["stage_eligibility_basis"][field] = copy.deepcopy(value)
+            result = validator.validate(package)
+            assert code in finding_codes(result), (field, result)
+            assert result["plan_ready"] is False
+
+    @test("later-stage release requires canonical upstream evidence not a downstream addition")
+    def _() -> None:
+        package = independent_strategy()
+        release_later_stage_keyword(package)
+        package["upstream_snapshots"]["keyword_library"]["keywords"][0].pop("stage_eligibility_basis")
+        assert "KEYWORD_STAGE_BASIS_MISSING" in finding_codes(validator.validate(package))
+
+    @test("legacy stage evidence alias is accepted only as an exact canonical mirror")
+    def _() -> None:
+        package = independent_strategy()
+        release_later_stage_keyword(package)
+        package["keyword_targets"][0]["current_stage_evidence_ids"] = ["E-CURRENT-STAGE-001"]
+        result = validator.validate(package)
+        assert result["plan_ready"] is True, result["findings"]
+        assert "LEGACY_KEYWORD_STAGE_EVIDENCE" in finding_codes(result)
+        package["keyword_targets"][0]["current_stage_evidence_ids"] = ["E-UNREGISTERED"]
+        assert "KEYWORD_STAGE_LEGACY_ALIAS_MISMATCH" in finding_codes(validator.validate(package))
+
+    @test("controlled-test review cannot promote an upstream ineligible keyword")
+    def _() -> None:
+        package = independent_strategy()
+        source = package["upstream_snapshots"]["keyword_library"]["keywords"][0]
+        target = package["keyword_targets"][0]
+        source.update({"library_role": "RELEVANT_NEEDS_VALIDATION", "downstream_review_eligible": False})
+        target.update({"library_role": "RELEVANT_NEEDS_VALIDATION", "downstream_review_eligible": True, "ad_eligibility_review": "APPROVED_CONTROLLED_TEST"})
+        result = validator.validate(package)
+        assert "KEYWORD_REVIEW_GATE_MISSING" in finding_codes(result)
+        source["downstream_review_eligible"] = True
+        assert validator.validate(package)["plan_ready"] is True
+
+    @test("handbacks route to current operations or user product review and preserve historical selection audits")
+    def _() -> None:
+        handback = {
+            "handback_id": "HB-001", "destination_skill": "plan-amazon-replenishment", "root_cause_class": "INVENTORY",
+            "diagnosis": "Review coverage and route feasibility", "source_ids": ["SRC-INVENTORY-001"], "evidence_ids": ["E-INVENTORY-001"],
+            "requested_review": "Review the current coverage gap", "advertising_interim_action": "OBSERVE", "status": "OPEN",
+        }
+        for destination in ("plan-amazon-replenishment", "reconcile-amazon-profit", "PRODUCT_LEVEL_USER_REVIEW", "EXTERNAL_OPERATIONAL_BLOCKER"):
+            package = independent_strategy()
+            package["handbacks"] = [{**handback, "destination_skill": destination}]
+            result = validator.validate(package)
+            assert result["plan_ready"] is True, (destination, result["findings"])
+        package["handbacks"][0]["destination_skill"] = "select-amazon-products"
+        assert "FROZEN_SELECTION_HANDBACK" in finding_codes(validator.validate(package))
+        package = valid_strategy()
+        package["handbacks"] = [{**handback, "destination_skill": "select-amazon-products"}]
+        result = validator.validate(package)
+        assert result["plan_ready"] is True, result["findings"]
+        assert "LEGACY_SELECTION_HANDBACK" in finding_codes(result)
+
+    @test("SP campaign plans use canonical bidding strategies and reserve RULE_BASED for existing preservation")
+    def _() -> None:
+        for value in validator.SP_SETTABLE_BID_STRATEGIES:
+            package = valid_strategy()
+            package["campaign_architecture"][0]["bid_strategy"] = value
+            assert validator.validate(package)["plan_ready"] is True, value
+        for value in ("FREE_MONEY", "MANUAL; top of search +900%", "RULE_BASED"):
+            package = valid_strategy()
+            package["campaign_architecture"][0]["bid_strategy"] = value
+            assert "CAMPAIGN_BID_STRATEGY_INVALID" in finding_codes(validator.validate(package)), value
+        package = valid_strategy(existing=True)
+        package["campaign_architecture"][0]["bid_strategy"] = "RULE_BASED"
+        assert validator.validate(package)["plan_ready"] is True
+
+    @test("SP prepared strategy updates reject arbitrary strings and RULE_BASED creation through every alias")
+    def _() -> None:
+        for alias in ("bidStrategy", "bidding", "dynamicBidding"):
+            def payload(value):
+                return {alias: value if alias == "bidStrategy" else {"strategy": value}}
+            for value in ("MANUAL", "SALES_DOWN_ONLY", "SALES_UP_AND_DOWN", "FREE_MONEY", "MANUAL; top of search +900%", "RULE_BASED"):
+                package = valid_strategy(existing=True)
+                package.update({"strategy_status": "READY_FOR_EXECUTION_REVIEW", "deliverable_mode": "PREPARE_CHANGES", "execution_authority": "PREPARE_CHANGES"})
+                operation = prepared_ad_operation("NOT_AUTHORIZED")
+                operation.update({"entity_type": "CAMPAIGN", "entity_id": "CAMPAIGN-001", "current_value": payload("SALES_DOWN_ONLY"), "proposed_value": payload(value)})
+                package["change_manifest"] = [operation]
+                result = validator.validate(package)
+                if value in validator.SP_SETTABLE_BID_STRATEGIES:
+                    assert result["execution_review_ready"] is True, (alias, value, result["findings"])
+                else:
+                    assert "CHANGE_BID_STRATEGY_INVALID" in finding_codes(result), (alias, value)
+                    assert result["execution_review_ready"] is False
+
+    @test("SP strategy changes preserve existing RULE_BASED without allowing new or contradictory strategy values")
+    def _() -> None:
+        assert validator.sp_strategy_change_invalid("UPDATE", {"bidStrategy": "RULE_BASED"}, {"bidStrategy": "RULE_BASED"}) is False
+        assert validator.sp_strategy_change_invalid("UPDATE", {"bidStrategy": "RULE_BASED", "dailyBudget": 10}, {"dailyBudget": 12}) is False
+        assert validator.sp_strategy_change_invalid("UPDATE", {"bidStrategy": "RULE_BASED"}, {"bidStrategy": "SALES_DOWN_ONLY"}) is False
+        assert validator.sp_strategy_change_invalid("CREATE", {"state": "ABSENT"}, {"bidStrategy": "RULE_BASED"}) is True
+        assert validator.sp_strategy_change_invalid("UPDATE", {"bidStrategy": "SALES_DOWN_ONLY", "dynamicBidding": {"strategy": "MANUAL"}}, {"bidStrategy": "MANUAL"}) is True
+        package = valid_strategy(existing=True)
+        package.update({"strategy_status": "READY_FOR_EXECUTION_REVIEW", "deliverable_mode": "PREPARE_CHANGES", "execution_authority": "PREPARE_CHANGES"})
+        package["campaign_architecture"][0]["bid_strategy"] = "RULE_BASED"
+        operation = prepared_ad_operation("NOT_AUTHORIZED")
+        operation.update({"entity_type": "CAMPAIGN", "entity_id": "CAMPAIGN-001", "current_value": {"bidStrategy": "RULE_BASED", "dailyBudget": 10}, "proposed_value": {"dailyBudget": 12}})
+        package["change_manifest"] = [operation]
+        result = validator.validate(package)
+        assert result["execution_review_ready"] is True, result["findings"]
+        operation.update({"action": "CREATE", "current_value": {"state": "ABSENT"}, "proposed_value": {"name": "New campaign", "adProduct": "SPONSORED_PRODUCTS", "targetingType": "MANUAL_KEYWORD", "bidStrategy": "RULE_BASED"}})
+        result = validator.validate(package)
+        assert "CHANGE_BID_STRATEGY_INVALID" in finding_codes(result)
+
+    @test("SP strategy enumeration is not imposed on SB or SD")
+    def _() -> None:
+        for product in ("SPONSORED_BRANDS", "SPONSORED_DISPLAY"):
+            package = valid_strategy()
+            package["campaign_architecture"][0].update({"ad_product": product, "bid_strategy": "verified product-specific setting"})
+            assert "CAMPAIGN_BID_STRATEGY_INVALID" not in finding_codes(validator.validate(package))
 
     failures: list[str] = []
     for name, function in tests:

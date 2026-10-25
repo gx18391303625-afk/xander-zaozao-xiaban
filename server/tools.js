@@ -41,6 +41,9 @@ function out(obj, label = 'result') {
 const S = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false });
 const str = (d) => ({ type: 'string', description: d });
 const num = (d) => ({ type: 'number', description: d });
+const nonnegativeMoney = (d) => ({ ...num(d), minimum: 0 });
+const positiveMoney = (d) => ({ ...num(d), exclusiveMinimum: 0 });
+const percent = (d) => ({ ...num(d), minimum: 0, maximum: 100 });
 const bool = (d) => ({ type: 'boolean', description: d });
 const store = str('店铺别名（只接了一个店铺时可省略）');
 const mkt = str('站点代码，如 US、UK、DE、JP（省略则用店铺默认站点）');
@@ -259,15 +262,15 @@ export function buildTools(version) {
     // ---------------- 计算器 ----------------
     {
       name: 'xander_calc_ad_economics',
-      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC（CPC 向下取整到分）。含税站点给 vatPct，利润率底线按不含税净销售额算；金额底线与比例底线取更严格的。可选成本没给会按 0 假设并标 PROVISIONAL（偏乐观）；卖家确认确实没有的放进 notApplicable。缺核心输入返回 INCOMPLETE。状态：BLOCKED（没有广告空间）/ PROVISIONAL / READY_ESTIMATED。更完整的模型用技能里的 calculate_ad_economics.py（calculation_scope=ECONOMICS_ONLY）。',
+      description: '算单件广告经济线：广告前贡献利润、盈亏平衡 ACoS/CPC、目标 ACoS/CPC（CPC 向下取整到分）。金额不能为负，售价和归因销售额须为正，百分比在0–100之间；非法值和未知字段报错。含税站点给 vatPct，利润率底线按不含税净销售额算；金额底线与比例底线取更严格的。可选成本没给会按 0 假设并标 PROVISIONAL（偏乐观）；卖家确认确实没有的放进 notApplicable。缺核心输入返回 INCOMPLETE。状态：BLOCKED（没有广告空间）/ PROVISIONAL / READY_ESTIMATED。更完整的模型用技能里的 calculate_ad_economics.py（calculation_scope=ECONOMICS_ONLY）。',
       inputSchema: S({
-        price: num('售价（含税站点填含税价）'), referralFeePct: num('佣金比例，如 15'), fbaFee: num('FBA 配送费'), purchaseCost: num('采购成本（同币种）'),
-        firstLegCost: num('头程（同币种）'), otherUnitCost: num('其他单件成本（包装、贴标、质检、关税、仓储等）'),
-        returnsCostPerUnit: num('退货非收入损耗/件'), refundLossPerUnit: num('预计退款收入损失/件'),
+        price: positiveMoney('售价（含税站点填含税价）'), referralFeePct: percent('佣金比例，如 15'), fbaFee: nonnegativeMoney('FBA 配送费'), purchaseCost: nonnegativeMoney('采购成本（同币种）'),
+        firstLegCost: nonnegativeMoney('头程（同币种）'), otherUnitCost: nonnegativeMoney('其他单件成本（包装、贴标、质检、关税、仓储等）'),
+        returnsCostPerUnit: nonnegativeMoney('退货非收入损耗/件'), refundLossPerUnit: nonnegativeMoney('预计退款收入损失/件'),
         notApplicable: { type: 'array', items: { type: 'string', enum: ['otherUnitCost', 'returnsCostPerUnit', 'refundLossPerUnit'] }, description: '卖家确认不适用的可选成本' },
-        vatPct: num('含税站点的增值税率，如 20（美国不填）'), attributedSalesPerOrder: num('每单广告归因销售额（默认 = 售价）'),
-        targetProfitPerUnit: num('每件最低利润'), targetMarginPct: num('最低利润率%（按不含税净销售额）'), riskBufferPerUnit: num('额外风险缓冲/件'),
-        cvrPct: num('广告转化率%'),
+        vatPct: percent('含税站点的增值税率，如 20（美国不填）'), attributedSalesPerOrder: positiveMoney('每单广告归因销售额（默认 = 售价）'),
+        targetProfitPerUnit: nonnegativeMoney('每件最低利润'), targetMarginPct: percent('最低利润率%（按不含税净销售额）'), riskBufferPerUnit: nonnegativeMoney('额外风险缓冲/件'),
+        cvrPct: percent('广告转化率%'),
       }),
       annotations: LOCAL_READ,
       async handler(a) { return calc.adEconomics(a); },
