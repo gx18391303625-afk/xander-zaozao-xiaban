@@ -7,7 +7,7 @@ description: "亚马逊在售商品库存续航、补货数量与颜色分配、
 
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读箱规（case_pack_qty）、MOQ、生产交期、海运/空运时效、安全库存天数和采购价——档案有的不再问。
 - 取数：FBA 库存 `xander_spapi_get` → `/fba/inventory/v1/summaries`（details=true，区分可售/预留/入库中）；入库计划与货件 `/inbound/fba/2024-03-20/inboundPlans`（旧版 Inbound v0 已下线）；销量用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT（按天、子 ASIN）。自发货库存看 `xander_listing_get` 的 fulfillmentAvailability。方法见 [取数方法](../xander-operations/references/data-workflow.md)。
-- 快速测算：`xander_calc_replenishment`（续航、断货日、情景件数与整箱数）。
+- 快速测算：`xander_calc_replenishment`（给定需求假设下的续航、断货日、情景件数与整箱数，不预测季节曲线）；窗口内需求或供给变化时，按参考中的逐日投影计算。
 - 本插件不下采购单、不建 FBA 货件。唯一的库存写入是自发货数量（op=`listing.fbmQuantity`），按 [写入安全](../xander-operations/references/write-safety.md) 走提案与批准。
 - 未知数字是 null，不是 0；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。
 
@@ -23,6 +23,7 @@ description: "亚马逊在售商品库存续航、补货数量与颜色分配、
 |---|---|
 | 当前库存/货件在哪/收货差异 | [库存与履约](references/inventory-and-fulfillment.md)，只查指定对象；不自动预测或补货 |
 | 能卖多久、何时补、补多少、颜色/路线分配 | [需求与数量](references/demand-and-quantity.md)和库存与履约；相关数据够用即计算 |
+| 季节窗口变化、旺季备货或季末消化/残量 | [季节决策复核](../xander-operations/references/seasonal-decision-review.md)和需求与数量；复用现有交付与合同，不新增阶段或 JSON 字段 |
 | 已确认总箱数，仅分颜色或装箱 | 需求与数量中的分配规则；保持最新批准总量，不重新定采购总量 |
 | GMV目标倒推件数 | 需求与数量中的目标情景；交条件式需求量，不包装成补货建议 |
 | 复用项目计算器、共享输入或向广告/利润交接 | [计算与交接](references/calculation-and-handoff.md) |
@@ -35,6 +36,7 @@ description: "亚马逊在售商品库存续航、补货数量与颜色分配、
 - 确认账户/站点、SKU/FNSKU/ASIN及变体、sellable offer与物理件单位、统计时间和目标窗口。套装、件、箱、托盘不可混用；箱规缺失则件数可算、箱数不可猜。跨店数据不合并。
 - 先解释平台字段及包含关系：fulfillable若已排除平台reserved，不能再扣同一reserved。FBA、海外仓和运输途中的同一批货只记一次。只有有证据的当前可售货进入当前库存；在途只进入带日期的未来供给。
 - 未知不是零，预计到达不是已收货，已收货不是已可售，货件创建不是实际发运。广告需求预测不是确定销量；销量少也可能因断货、停投、改价，不能直接当需求弱。
+- 价格、促销或广告放量情景改变后，重算对应需求、续航与期末残量，不能沿用旧日销下的续航结论。季末按剩余经济销售窗口、允许残量和逐批实际/预计可售日期核对消化速度；广告与价格方案分别交对应责任方，不以低 CPC 代替能否及时消化库存的判断。
 - 低/基准/高情景只在会改变数量或风险时提供；单项换算、既定箱数分配不强制三情景。GMV倒推不验证需求、利润、现金或交期。
 - 保留成本、需求与交期的来源/日期/实际或估算属性，安全库存与交期缓冲各计一次。新批准总量只覆盖相应计划，不自动批准运输方式、付款或货件创建。
 - 计划状态与执行状态分开：计算可复核不等于数据齐备；方案可审阅不等于已批准；批准不等于已执行；提交不等于回读成功。

@@ -16,6 +16,8 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 | 库存续航、补货数量、整箱分配 | `plan-amazon-replenishment` |
 | 利润估算、期间复盘、结算对账 | `reconcile-amazon-profit` |
 
+涉及季节变化、剩余销售窗口，或广告、价格促销、库存现金需要共同取舍时，按需加载 [季节与跨模块决策复盘](references/seasonal-decision-review.md)。它衔接已有证据和门禁；单指标计算、单字段修改等窄任务不要求补齐整张复盘卡。
+
 ## 开始
 
 1. 每个会话先调用一次 `xander_status`，看已接入哪些店铺、哪些开关开着。之后复用结果，连接出错时再查。
