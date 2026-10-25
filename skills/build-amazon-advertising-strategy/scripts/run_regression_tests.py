@@ -3309,6 +3309,82 @@ def run() -> int:
             package["campaign_architecture"][0].update({"ad_product": product, "bid_strategy": "verified product-specific setting"})
             assert "CAMPAIGN_BID_STRATEGY_INVALID" not in finding_codes(validator.validate(package))
 
+    @test("ECONOMICS_READY cannot relax a preserved profit floor in either independent mode")
+    def _() -> None:
+        for existing in (False, True):
+            package = independent_strategy(existing)
+            package.update({"strategy_status": "ECONOMICS_READY", "deliverable_mode": "ECONOMICS_ONLY"})
+            assert validator.validate(package)["economics_ready"] is True
+            inputs = package["economics"]["input_snapshot"]
+            for scenario in inputs.get("scenarios", [inputs]):
+                scenario["target_profit_per_order"] = 0
+            recalculate_package_economics(package)
+            result = validator.validate(package)
+            assert result["economics_ready"] is False
+            assert any(row["code"] == "ECONOMICS_PROFIT_OBJECTIVE_MISMATCH" and row["severity"] == "ERROR" for row in result["findings"])
+
+    @test("ready economics preserves referenced context and hashes without requiring an invented context")
+    def _() -> None:
+        for existing in (False, True):
+            base = independent_strategy(existing)
+            base.update({"strategy_status": "ECONOMICS_READY", "deliverable_mode": "ECONOMICS_ONLY"})
+            for case, code in (("envelope", "OPERATING_CONTEXT_MISSING"), ("hash", "OPERATING_CONTEXT_HASH_MISMATCH"), ("snapshot_id", "OPERATING_CONTEXT_LINEAGE_MISSING"), ("snapshot_hash", "OPERATING_CONTEXT_HASH_LINEAGE_MISSING")):
+                package = copy.deepcopy(base)
+                if case == "envelope":
+                    package.pop("operating_context")
+                    package.pop("operating_context_sha256")
+                elif case == "hash":
+                    package.pop("operating_context_sha256")
+                elif case == "snapshot_id":
+                    package["upstream_snapshots"]["listing_release"].pop("operating_context_id")
+                else:
+                    package["upstream_snapshots"]["keyword_library"].pop("operating_context_sha256")
+                result = validator.validate(package)
+                assert result["economics_ready"] is False, case
+                assert any(row["code"] == code and row["severity"] == "ERROR" for row in result["findings"]), (case, result["findings"])
+            standalone = copy.deepcopy(base)
+            standalone.pop("operating_context")
+            standalone.pop("operating_context_sha256")
+            for snapshot in standalone["upstream_snapshots"].values():
+                snapshot.pop("operating_context_id")
+                snapshot.pop("operating_context_sha256")
+            assert validator.validate(standalone)["economics_ready"] is True
+            draft = copy.deepcopy(base)
+            draft.update({"strategy_status": "PROVISIONAL"})
+            draft.pop("operating_context")
+            draft.pop("operating_context_sha256")
+            assert all(row["severity"] == "WARNING" for row in validator.validate(draft)["findings"] if row["code"] == "OPERATING_CONTEXT_MISSING")
+
+    @test("canonical eligibility keeps explicit null and false fields present downstream")
+    def _() -> None:
+        for field in validator.CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
+            for value in (None, False):
+                package = independent_strategy()
+                source = package["upstream_snapshots"]["keyword_library"]["keywords"][0]
+                target = package["keyword_targets"][0]
+                source[field] = value
+                target[field] = value
+                assert validator.validate(package)["plan_ready"] is True, (field, value)
+                target.pop(field)
+                result = validator.validate(package)
+                assert "UPSTREAM_KEYWORD_FIELD_MISMATCH" in finding_codes(result), (field, value)
+                assert result["plan_ready"] is False
+
+    @test("all three SP aliases preserve RULE_BASED and permit supported exits using matching current fields")
+    def _() -> None:
+        for alias in ("bidStrategy", "bidding", "dynamicBidding"):
+            def payload(value):
+                return {alias: value if alias == "bidStrategy" else {"strategy": value}}
+            for proposed in [{"dailyBudget": 12}] + [payload(value) for value in ("RULE_BASED", "MANUAL", "SALES_DOWN_ONLY", "SALES_UP_AND_DOWN")]:
+                package = independent_strategy(existing=True)
+                package.update({"strategy_status": "READY_FOR_EXECUTION_REVIEW", "deliverable_mode": "PREPARE_CHANGES", "execution_authority": "PREPARE_CHANGES"})
+                package["campaign_architecture"][0]["bid_strategy"] = "RULE_BASED"
+                operation = prepared_ad_operation("NOT_AUTHORIZED")
+                operation.update({"entity_type": "CAMPAIGN", "entity_id": "CAMPAIGN-001", "current_value": {**payload("RULE_BASED"), "dailyBudget": 10}, "proposed_value": proposed})
+                package["change_manifest"] = [operation]
+                result = validator.validate(package)
+                assert result["execution_review_ready"] is True, (alias, proposed, result["findings"])
+
     failures: list[str] = []
     for name, function in tests:
         try:

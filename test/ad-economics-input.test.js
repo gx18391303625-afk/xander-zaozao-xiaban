@@ -81,3 +81,71 @@ test('MCP 广告计算入口即使未做 schema 预校验也拒绝非法输入',
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('分摊成本保留到最终输出，不能提前按分取整抬高 CPC', () => {
+  const common = { ...base(), referralFeePct: 0, fbaFee: 0, firstLegCost: 0, cvrPct: 100, targetMarginPct: 0 };
+  const halfCent = adEconomics({ ...common, price: 2, purchaseCost: 1.005 });
+  assert.equal(halfCent.perUnit.采购, 1.01, '显示使用十进制四舍五入');
+  assert.equal(halfCent.盈亏平衡ACoS, 49.75);
+  assert.equal(halfCent.盈亏平衡CPC, 0.99, '实际贡献0.995不能变成1.00的CPC');
+  const subCent = adEconomics({ ...common, price: 1, purchaseCost: 0.004 });
+  assert.equal(subCent.盈亏平衡CPC, 0.99);
+  assert.equal(subCent.目标CPC, 0.99);
+  const priceFraction = adEconomics({ ...common, price: 1.005, purchaseCost: 0 });
+  assert.equal(priceFraction.perUnit.含税售价, 1.01);
+  assert.equal(priceFraction.目标CPC, 1);
+});
+
+test('精确低于一分边界的CPC不会被浮点epsilon向上释放', () => {
+  const r = adEconomics({ ...base(), price: 1, referralFeePct: 1e-10, fbaFee: 0, purchaseCost: 0, firstLegCost: 0, cvrPct: 100, targetMarginPct: 0 });
+  assert.equal(r.盈亏平衡CPC, 0.99);
+  assert.equal(r.目标CPC, 0.99);
+  const tinyCost = adEconomics({ ...base(), price: 1, referralFeePct: 0, fbaFee: 0, purchaseCost: 1e-7, firstLegCost: 0, cvrPct: 100, targetMarginPct: 0 });
+  assert.equal(tinyCost.目标CPC, 0.99);
+});
+
+test('不适用声明不能与同名成本同时提供，确认零成本可只填0', () => {
+  for (const field of ['otherUnitCost', 'returnsCostPerUnit', 'refundLossPerUnit']) {
+    for (const value of [0, 0.2, null]) assert.throws(() => adEconomics({ ...base(), [field]: value }), /notApplicable/);
+  }
+  assert.equal(adEconomics({ ...base(), notApplicable: [], otherUnitCost: 0, returnsCostPerUnit: 0, refundLossPerUnit: 0 }).status, 'READY_ESTIMATED');
+});
+
+test('退款损失以税前收入为界，拒绝负净收入但允许全额退款情景', () => {
+  const values = { ...base(), price: 24, vatPct: 20, notApplicable: ['otherUnitCost', 'returnsCostPerUnit'] };
+  assert.throws(() => adEconomics({ ...values, refundLossPerUnit: 20.001 }), /refundLossPerUnit/);
+  const allRefunded = adEconomics({ ...values, refundLossPerUnit: 20 });
+  assert.equal(allRefunded.perUnit.净销售额, 0);
+  assert.equal(allRefunded.status, 'BLOCKED');
+});
+
+test('金额与净收入比例利润底线取严格者，风险缓冲不被忽略', () => {
+  const combined = adEconomics({ ...base(), price: 24, vatPct: 20, refundLossPerUnit: 2, notApplicable: ['otherUnitCost', 'returnsCostPerUnit'], targetProfitPerUnit: 2, riskBufferPerUnit: 0.1, cvrPct: 12, attributedSalesPerOrder: 18 });
+  assert.equal(combined.perUnit.净销售额, 18);
+  assert.equal(combined.perUnit.广告前贡献利润, 7.4);
+  assert.equal(combined.利润底线每件, 2.1);
+  assert.equal(combined.目标ACoS, 29.44);
+  assert.equal(combined.目标CPC, 0.63);
+  const bufferOnly = adEconomics({ ...base(), targetMarginPct: null, riskBufferPerUnit: 1.005 });
+  assert.equal(bufferOnly.利润底线每件, 1.01);
+  assert.equal(bufferOnly.目标CPC, 0.89);
+});
+
+test('缺CVR与零CVR分别报告，ACoS代用分母和单位明确且没有执行授权', () => {
+  const missing = adEconomics({ ...base(), cvrPct: null });
+  assert.equal(missing.status, 'READY_ESTIMATED', '只有CPC缺输入，不阻断可算的ACoS');
+  assert.equal(missing.metricStatus.breakEvenCpc, 'UNAVAILABLE_CVR');
+  assert.equal(missing.盈亏平衡CPC, null);
+  assert.match(missing.statusMeaning, /未提供转化率/);
+  const zero = adEconomics({ ...base(), cvrPct: 0 });
+  assert.equal(zero.目标CPC, 0);
+  assert.equal(zero.metricStatus.targetCpc, 'NO_AD_CAPACITY');
+  assert.equal(zero.modelBasis.attributedSalesBasis, 'PRICE_PROXY');
+  assert.equal(zero.modelBasis.outputAcosUnit, 'PERCENT');
+  assert.equal(zero.executionAuthorized, false);
+  const reported = adEconomics({ ...base(), attributedSalesPerOrder: 10 });
+  assert.equal(reported.modelBasis.attributedSalesBasis, 'INPUT_ESTIMATE');
+  assert.equal(reported.盈亏平衡ACoS, 100);
+  assert.equal(reported.目标ACoS, 80);
+  assert.equal(reported.目标CPC, 0.8, '改变ACoS收入分母不改变每单贡献×CVR');
+});

@@ -1065,6 +1065,11 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
     def gap(code: str, location: str, message: str) -> None:
         add("ERROR" if traffic_ready_status else "WARNING", code, location, message)
 
+    def context_gap(code: str, location: str, message: str) -> None:
+        # Standalone economics does not need a traffic plan, but a ready result
+        # still cannot discard supplied upstream context or profit constraints.
+        add("ERROR" if traffic_ready_status or status == "ECONOMICS_READY" else "WARNING", code, location, message)
+
     lineage_mode = data.get("lineage_mode")
     if not is_allowed(lineage_mode, {"FULL_WORKFLOW", "INDEPENDENT_EXISTING", "INDEPENDENT_NEW"}):
         add("ERROR", "LINEAGE_MODE_INVALID", "lineage_mode", "Use FULL_WORKFLOW, INDEPENDENT_EXISTING, or INDEPENDENT_NEW")
@@ -1272,7 +1277,7 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
         supplied_context_hash = data.get("operating_context_sha256")
         if supplied_context_hash != computed_operating_context_hash:
             add(
-                "ERROR" if traffic_ready_status or supplied_context_hash is not None else "WARNING",
+                "ERROR" if traffic_ready_status or status == "ECONOMICS_READY" or supplied_context_hash is not None else "WARNING",
                 "OPERATING_CONTEXT_HASH_MISMATCH",
                 "operating_context_sha256",
                 "operating_context_sha256 must match canonical operating_context content",
@@ -1498,17 +1503,17 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             snapshot_context_id = snapshot.get("operating_context_id")
             location = f"upstream_snapshots.{snapshot_name}.operating_context_id"
             if not nonplaceholder(snapshot_context_id):
-                gap("OPERATING_CONTEXT_LINEAGE_MISSING", location, "Every supplied upstream snapshot must preserve operating_context_id")
+                context_gap("OPERATING_CONTEXT_LINEAGE_MISSING", location, "Every supplied upstream snapshot must preserve operating_context_id")
             elif snapshot_context_id != operating_context_id:
                 add("ERROR", "OPERATING_CONTEXT_LINEAGE_MISMATCH", location, "Upstream operating_context_id does not match the strategy envelope")
             snapshot_context_hash = snapshot.get("operating_context_sha256")
             hash_location = f"upstream_snapshots.{snapshot_name}.operating_context_sha256"
             if not nonplaceholder(snapshot_context_hash):
-                gap("OPERATING_CONTEXT_HASH_LINEAGE_MISSING", hash_location, "Every supplied upstream snapshot must preserve operating_context_sha256")
+                context_gap("OPERATING_CONTEXT_HASH_LINEAGE_MISSING", hash_location, "Every supplied upstream snapshot must preserve operating_context_sha256")
             elif snapshot_context_hash != computed_operating_context_hash:
                 add("ERROR", "OPERATING_CONTEXT_HASH_LINEAGE_MISMATCH", hash_location, "Upstream operating_context_sha256 does not match the strategy envelope")
         elif snapshot.get("operating_context_id") is not None or snapshot.get("operating_context_sha256") is not None:
-            gap("OPERATING_CONTEXT_MISSING", "operating_context", f"The supplied {snapshot_name} snapshot references an operating context that must be preserved")
+            context_gap("OPERATING_CONTEXT_MISSING", "operating_context", f"The supplied {snapshot_name} snapshot references an operating context that must be preserved")
 
     if traffic_ready_status:
         if not nonplaceholder(listing_release.get("path")):
@@ -1872,7 +1877,7 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                     context_value = number(preserved_profit.get(field), f"operating_context.profit_objective.{field}")
                     model_value = number(item.get(field), f"{location}.{field}")
                     if context_value != model_value:
-                        gap("ECONOMICS_PROFIT_OBJECTIVE_MISMATCH", f"{location}.{field}", f"{field} must match the preserved operating-context profit objective; an updated objective needs a separately evidenced context revision")
+                        context_gap("ECONOMICS_PROFIT_OBJECTIVE_MISMATCH", f"{location}.{field}", f"{field} must match the preserved operating-context profit objective; an updated objective needs a separately evidenced context revision")
 
     economics_status = binding_calc.get("overall_status")
     if not is_allowed(economics_status, {"READY_ACTUAL", "READY_ESTIMATED", "PROVISIONAL", "BLOCKED"}):
@@ -2096,7 +2101,7 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
                 "keyword_original", "eligibility_flags", "claim_gate", "eligible_for_visible_copy", "product_fit",
                 "stage_eligibility_basis",
             ) + CANONICAL_KEYWORD_ELIGIBILITY_FIELDS:
-                if preserved_field in upstream_keyword and target.get(preserved_field) != upstream_keyword.get(preserved_field):
+                if preserved_field in upstream_keyword and (preserved_field not in target or target[preserved_field] != upstream_keyword[preserved_field]):
                     add("ERROR", "UPSTREAM_KEYWORD_FIELD_MISMATCH", location, f"Downstream keyword changed preserved field {preserved_field}")
         if decision == "INCLUDE":
             if not is_allowed(target.get("targeting_expression"), KEYWORD_TARGETING_EXPRESSIONS):

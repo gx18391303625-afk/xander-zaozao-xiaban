@@ -30,6 +30,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (apiPath === '/adsApi/v1/create/targets') {
     if (mode === 'unknown') return json(503, { message: 'Synthetic uncertain result' });
+    if (/^http-(408|409|499)$/.test(mode)) return json(Number(mode.slice(5)), { message: 'Synthetic ambiguous write response' });
     if (creationReceipt !== undefined) return json(207, creationReceipt);
     returnedTargets = [{ ...body.targets[0], targetId: 'T1', campaignId: 'C1', ...(mode === 'wrong-bid' ? { bid: { bid: 9.9 } } : {}) }];
     return json(207, { success: [{ index: 0, target: { targetId: 'T1' } }], error: [] });
@@ -215,4 +216,97 @@ test('monetary input must be a JSON number, never boolean, array, object or nume
   const budget = opById('ads.sp.campaign.budget');
   assert.throws(() => budget.check({ value: [12] }, { old: 10 }, { budgetChangePctMax: 100 }), /JSON 数字/);
   assert.equal((await prepareChange({ store: 'synthetic', changes: [input({ bid: 0.8 })] })).ok, true);
+});
+
+
+test('legacy missing-ID FAILED receipts remain unresolved without rewriting approval hashes', async () => {
+  setSwitch(positive.id, true, 'synthetic-test'); mode = 'unknown';
+  const p = await prepareChange({ store: 'synthetic', changes: [input()] });
+  await executeChange({ proposalId: p.proposalId, hash: p.hash, approved: true });
+  const legacy = loadProposal(p.proposalId);
+  legacy.status = 'FAILED';
+  legacy.items[0].result = { status: 'FAILED', error: '没有返回新对象 ID', createdIds: [] };
+  legacy.items[0].sendResult = { ok: false, error: '没有返回新对象 ID', createdIds: [] };
+  fs.writeFileSync(path.join(home, 'proposals', `${p.proposalId}.json`), JSON.stringify(legacy));
+  const retry = await prepareChange({ store: 'synthetic', changes: [input({ bid: 0.9 })] });
+  assert.equal(retry.ok, false); assert.match(retry.errors[0].error, /仍未核验/);
+  assert.equal((await verifyChange({ proposalId: p.proposalId })).status, 'OUTCOME_UNKNOWN');
+  assert.equal(loadProposal(p.proposalId).hash, legacy.hash);
+  assert.equal(calls.filter(x => x.path.includes('/create/')).length, 1);
+});
+
+test('profile rebinding cannot authorize stale-account writes or readback', async () => {
+  setSwitch(positive.id, true, 'synthetic-test');
+  const p = await prepareChange({ store: 'synthetic', changes: [input()] });
+  updateConfig(c => { c.stores.synthetic.ads.profiles.US = '999'; });
+  const r = await executeChange({ proposalId: p.proposalId, hash: p.hash, approved: true });
+  assert.equal(r.status, 'SKIPPED_STALE');
+  assert.equal(calls.filter(x => x.path.includes('/create/')).length, 0);
+
+  updateConfig(c => { c.stores.synthetic.ads.profiles.US = '987'; }); mode = 'wrong-bid';
+  const pending = await prepareChange({ store: 'synthetic', changes: [input()] });
+  assert.equal((await executeChange({ proposalId: pending.proposalId, hash: pending.hash, approved: true })).status, 'MISMATCH');
+  returnedTargets = [validTarget()];
+  updateConfig(c => { c.stores.synthetic.ads.profiles.US = '999'; });
+  const reads = calls.length;
+  assert.equal((await verifyChange({ proposalId: pending.proposalId })).status, 'MISMATCH');
+  assert.equal(calls.length, reads, 'Never query a different profile to verify the approved write');
+  assert.match(loadProposal(pending.proposalId).items[0].readback.error, /profile/);
+});
+
+
+test('approval table discloses enabled state and effects for positive and negative keywords', async () => {
+  for (const operation of [positive, negative]) {
+    const p = await prepareChange({ store: 'synthetic', changes: [input({ op: operation.id })] });
+    assert.equal(p.ok, true);
+    assert.equal(JSON.parse(p.table[0].新值).state, 'ENABLED');
+    assert.match(p.table[0].提醒.join(' '), operation === positive ? /启用.*花费/ : /否定.*启用.*排除/);
+    assert.equal(loadProposal(p.proposalId).items[0].request.body.targets[0].state, 'ENABLED');
+  }
+});
+
+
+test('keyword HTTP timeout and conflict preserve uncertainty and block another proposal', async () => {
+  setSwitch(positive.id, true, 'synthetic-test');
+  for (const code of [408, 409, 499]) {
+    mode = `http-${code}`;
+    const c = input({ keywordText: `http uncertain keyword ${code}` });
+    const p = await prepareChange({ store: 'synthetic', changes: [c] });
+    assert.equal((await executeChange({ proposalId: p.proposalId, hash: p.hash, approved: true })).status, 'OUTCOME_UNKNOWN');
+    assert.equal((await verifyChange({ proposalId: p.proposalId })).status, 'OUTCOME_UNKNOWN');
+    assert.equal((await prepareChange({ store: 'synthetic', changes: [{ ...c, bid: 0.9 }] })).ok, false);
+  }
+  assert.equal(calls.filter(x => x.path.includes('/create/')).length, 3);
+});
+
+
+test('legacy stored keyword error codes distinguish rejection from ambiguous creation', async () => {
+  setSwitch(positive.id, true, 'synthetic-test'); mode = 'unknown';
+  const fixtures = [
+    { error: 'INTERNAL_ERROR', createdIds: [], unresolved: true },
+    { error: 'UNKNOWN_SERVER_FAILURE', createdIds: [], unresolved: true },
+    { error: 'INVALID_INPUT Invalid keyword', createdIds: [], unresolved: false },
+    { error: 'INVALID_INPUT Invalid keyword; INTERNAL_ERROR', createdIds: [], unresolved: true },
+    { error: 'INVALID_INPUT Invalid keyword', createdIds: ['T1'], unresolved: true },
+  ];
+  for (const [index, fixture] of fixtures.entries()) {
+    const c = input({ keywordText: `legacy code ${index}` });
+    const p = await prepareChange({ store: 'synthetic', changes: [c] });
+    await executeChange({ proposalId: p.proposalId, hash: p.hash, approved: true });
+    const legacy = loadProposal(p.proposalId);
+    legacy.status = 'FAILED';
+    legacy.items[0].result = { status: 'FAILED', error: fixture.error };
+    legacy.items[0].sendResult = { ok: false, error: fixture.error, createdIds: fixture.createdIds };
+    fs.writeFileSync(path.join(home, 'proposals', `${p.proposalId}.json`), JSON.stringify(legacy));
+    const retry = await prepareChange({ store: 'synthetic', changes: [{ ...c, bid: 0.9 }] });
+    assert.equal(retry.ok, !fixture.unresolved, fixture.error);
+    assert.equal((await verifyChange({ proposalId: p.proposalId })).status, fixture.unresolved ? 'OUTCOME_UNKNOWN' : 'FAILED');
+    assert.equal(loadProposal(p.proposalId).hash, legacy.hash);
+    assert.deepEqual(loadProposal(p.proposalId).items[0].sendResult.createdIds, fixture.createdIds);
+    if (fixture.createdIds.length) {
+      returnedTargets = [validTarget({ targetDetails: { keywordTarget: { keyword: c.keywordText, matchType: 'EXACT' } } })];
+      assert.equal((await verifyChange({ proposalId: p.proposalId })).status, 'API_STATE_VERIFIED');
+    }
+  }
+  assert.equal(calls.filter(x => x.path.includes('/create/')).length, fixtures.length);
 });
