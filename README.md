@@ -83,6 +83,8 @@ xander panel
 
 六项新增能力的范围、输入示例、资格和状态含义见 [2.3 功能使用说明](docs/v2.3-features.md)。所有新增开关默认关闭；升级不会改动店铺设置、密钥或档案库。
 
+美国 SP 活动名称可通过独立的“修改广告活动名称”开关修改；只提交名称字段，保留暂停状态、预算及竞价。参数和审批流程见 [活动改名](docs/ads-campaign-name.md)。
+
 Item Highlights 使用 Amazon 属性 `title_differentiation`，可独立读取，并按目标站点、商品类型和语言准备改动；真实 PTD 与 `VALIDATION_PREVIEW` 通过后仍须批准，演练不正式提交。字段映射与完整流程见 [Listing 文案属性](docs/listing-attributes.md)。
 
 归档、删除这类不可恢复的操作故意不提供。
