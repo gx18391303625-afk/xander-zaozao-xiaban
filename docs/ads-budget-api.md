@@ -47,6 +47,8 @@ SP 专用预算接口使用 `application/json`，其 207 回执为 `responses:[{
 
 活动归属使用官方统一 SP `SPCampaignUpdate.portfolioId` 字段（允许 null）。组合预算的 `NO_CAP` 请求明确把 `amount`、`startDate`、`endDate` 设为 null；币种必须与站点一致。组合当前 `EntityState` 合约只有 `ENABLED`，所以不会编造暂停/归档状态。[统一 SP 官方合约](https://github.com/amzn/ads-advanced-tools-docs/blob/main/unified-campaign-management-migration-skills/api-specs/unified-api-sp.json)、[组合指南](https://advertising.amazon.com/API/docs/en-us/guides/portfolios/get-started)
 
+`NO_CAP` 回读可能直接省略被清除的三个字段。核验仅在批准的 policy 和实际 policy 均为 `NO_CAP` 时，将这三个字段的缺省与 null 视为等价；任何残留金额或日期仍不匹配。币种、其他批准字段，以及现有关联活动的 `adProduct + campaignId` 集合继续严格核对。此前因此停在 `AWAITING_READBACK` 的已执行提案，使用 `xander_verify_change` 重新查询即可，不再次执行。
+
 本次读取的合约 SHA-256：
 
 ```text

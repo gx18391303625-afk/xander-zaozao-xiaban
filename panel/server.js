@@ -12,6 +12,7 @@ import { getSecret } from '../lib/secrets.js';
 import { VERSION } from '../lib/version.js';
 
 const HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
+const HTML_UNAVAILABLE = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>面板暂时无法加载</title><body><h1>面板暂时无法加载</h1><p>页面资源暂时不可用，请稍后刷新。若插件已更新，请在当前操作完成后从新版本重新打开面板。</p></body></html>';
 
 function state() {
   const cfg = loadConfig();
@@ -29,23 +30,34 @@ function state() {
 }
 
 export function startPanel({ port = 8765, open = true } = {}) {
+  // The installer may remove this version's directory while its panel is still
+  // serving an approval. Keep HTML paired with the already-loaded server code.
+  let html;
+  const readHtml = () => html ??= fs.readFileSync(HTML, 'utf8');
+  try { readHtml(); } catch { /* Retry on GET if installation is not ready yet. */ }
   const token = crypto.randomBytes(18).toString('base64url');
   const server = http.createServer(async (req, res) => {
     const send = (code, body, type = 'application/json; charset=utf-8') => {
+      if (res.destroyed || res.writableEnded) return;
+      const payload = typeof body === 'string' ? body : JSON.stringify(body);
       res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
-      res.end(typeof body === 'string' ? body : JSON.stringify(body));
+      res.end(payload);
     };
-    // 防 DNS 重绑定：只接受本机地址的 Host
-    const host = req.headers.host || '';
-    const actualPort = server.address().port;
-    if (host !== `127.0.0.1:${actualPort}` && host !== `localhost:${actualPort}`) return send(403, { error: 'forbidden host' });
-
-    const url = new URL(req.url, `http://${host}`);
-    if (req.method === 'GET' && url.pathname === '/') return send(200, fs.readFileSync(HTML, 'utf8'), 'text/html; charset=utf-8');
-    if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
-    if (req.headers['x-xander-token'] !== token) return send(401, { error: '口令不对：请用终端里打印的完整网址打开面板。' });
-
     try {
+      // 防 DNS 重绑定：只接受本机地址的 Host
+      const host = req.headers.host || '';
+      const actualPort = server.address()?.port;
+      if (host !== `127.0.0.1:${actualPort}` && host !== `localhost:${actualPort}`) return send(403, { error: 'forbidden host' });
+
+      const url = new URL(req.url, `http://${host}`);
+      if (req.method === 'GET' && url.pathname === '/') {
+        let page;
+        try { page = readHtml(); } catch { return send(503, HTML_UNAVAILABLE, 'text/html; charset=utf-8'); }
+        return send(200, page, 'text/html; charset=utf-8');
+      }
+      if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
+      if (req.headers['x-xander-token'] !== token) return send(401, { error: '口令不对：请用终端里打印的完整网址打开面板。' });
+
       if (req.method === 'GET' && url.pathname === '/api/state') return send(200, state());
       if (req.method !== 'POST') return send(405, { error: 'method' });
       let raw = '';
@@ -63,6 +75,7 @@ export function startPanel({ port = 8765, open = true } = {}) {
       else return send(404, { error: 'not found' });
       return send(200, state());
     } catch (e) {
+      if (res.headersSent) { res.destroy(); return; }
       return send(400, { error: e.message });
     }
   });
