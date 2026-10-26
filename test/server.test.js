@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { isolate } from './helpers.js';
 
 const dir = isolate();
@@ -33,9 +34,16 @@ test('MCP：握手、列工具、调用；stdout 只有协议内容', async () =
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'xander_switches', arguments: {} } },
     { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'xander_execute_change', arguments: { proposalId: 'P20260101000000abcd', hash: 'x', approved: true } } },
     { jsonrpc: '2.0', id: 5, method: 'nope' },
+    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'xander_status', arguments: { check: false } } },
   ]);
   const byId = Object.fromEntries(lines.map((l) => [l.id, l]));
   assert.equal(byId[1].result.serverInfo.name, 'xander');
+  const expectedVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  assert.equal(byId[1].result.serverInfo.version, expectedVersion);
+  assert.equal(JSON.parse(byId[6].result.content[0].text).version, expectedVersion);
+  for (const file of ['plugin.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json']) {
+    assert.equal(JSON.parse(readFileSync(path.join(root, file), 'utf8')).version, expectedVersion, file);
+  }
   const names = byId[2].result.tools.map((t) => t.name);
   assert.ok(names.includes('xander_prepare_change'));
   assert.ok(!names.some((n) => /switch_(on|set)|set_switch|toggle/.test(n)), '不能有拨开关的工具');
