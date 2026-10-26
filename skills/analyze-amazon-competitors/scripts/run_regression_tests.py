@@ -411,5 +411,11 @@ class BenchmarkLockingTests(unittest.TestCase):
             )
 
 
+def load_tests(loader, standard_tests, pattern):
+    # Keep the established runner while including the evidence checks.
+    standard_tests.addTests(loader.discover(str(SCRIPT_DIR), pattern="test_evidence_*.py"))
+    return standard_tests
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

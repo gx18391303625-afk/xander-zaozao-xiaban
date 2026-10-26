@@ -1,0 +1,57 @@
+{
+  "quotes": [
+    {
+      "id": "own-prime",
+      "product_id": "ANON-OWN",
+      "selected_variant": "gray",
+      "source_ids": [
+        "SYNTHETIC-PAGE-own-prime"
+      ],
+      "observed_at": "2026-10-25T17:30:00Z",
+      "marketplace": "US",
+      "region": "US-90060",
+      "currency": "USD",
+      "demand_phase": "RISING",
+      "kind": "PRIME",
+      "amount": "16.98",
+      "basis": "PACK",
+      "unit_label": "hand-warmer",
+      "pack_units": 2,
+      "pack_status": "CONSISTENT"
+    },
+    {
+      "id": "peer-unit",
+      "product_id": "ANON-PEER",
+      "selected_variant": "black",
+      "source_ids": [
+        "SYNTHETIC-PAGE-peer-unit"
+      ],
+      "observed_at": "2026-10-25T17:30:00Z",
+      "marketplace": "US",
+      "region": "US-90060",
+      "currency": "USD",
+      "demand_phase": "RISING",
+      "kind": "PRIME",
+      "amount": "9.00",
+      "basis": "UNIT",
+      "unit_label": "hand-warmer",
+      "pack_units": 2,
+      "pack_status": "CONSISTENT"
+    }
+  ],
+  "comparison": {
+    "quote_ids": [
+      "own-prime",
+      "peer-unit"
+    ],
+    "buyer": "PRIME",
+    "conditions": [],
+    "marketplace": "US",
+    "region": "US-90060",
+    "currency": "USD",
+    "demand_phase": "RISING",
+    "basis": "UNIT",
+    "window_start": "2026-10-25T17:00:00Z",
+    "window_end": "2026-10-25T18:00:00Z"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "targets": [
+    {
+      "marketplace": "US",
+      "asin": "B000000101"
+    },
+    {
+      "marketplace": "US",
+      "asin": "B000000102"
+    },
+    {
+      "marketplace": "US",
+      "asin": "B000000103"
+    }
+  ],
+  "pages": [
+    {
+      "marketplace": "US",
+      "host_asin": "B000000101",
+      "access_status": "LOGIN_REQUIRED",
+      "source_locator": "anonymized/blocked-1.html",
+      "captured_at": "2026-10-25T17:00:00Z",
+      "reviews": []
+    },
+    {
+      "marketplace": "US",
+      "host_asin": "B000000102",
+      "access_status": "PARSE_ERROR",
+      "source_locator": "anonymized/blocked-2.html",
+      "captured_at": "2026-10-25T17:00:00Z",
+      "reviews": []
+    },
+    {
+      "marketplace": "US",
+      "host_asin": "B000000103",
+      "access_status": "NOT_COLLECTED",
+      "source_locator": "anonymized/blocked-3.html",
+      "captured_at": "2026-10-25T17:00:00Z",
+      "reviews": []
+    }
+  ]
+}

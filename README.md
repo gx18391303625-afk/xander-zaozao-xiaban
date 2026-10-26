@@ -165,6 +165,8 @@ npm test          # 契约、故障恢复、审批和端到端模拟测试：v1 
 
 技能里的 Python 脚本（竞品评分、广告经济、Listing 校验等）各自带回归测试：`python3 skills/<技能>/scripts/run_regression_tests.py`。
 
+竞品研究可按需运行[证据检查](skills/analyze-amazon-competitors/references/evidence-checks.md)，核对评论去重/变体、报价资格/单位和事件时间线。检查器只验证已提供记录，不替代来源核实或业务决策。
+
 ## 创作初衷
 
 第一 ☝️ 我期望能解放所有基本运营岗位，或服务给小卖家；

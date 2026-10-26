@@ -30,6 +30,7 @@ description: "锁定亚马逊对标竞品、对比我方与竞品的关键词点
 | 我方与竞品的关键词点击率、转化率、购买量或总销量趋势 | [表现对标](references/query-performance-benchmarking.md)；按指定词、对象和期间交付对比与优先检查项，不自动扩展为完整竞品报告或广告调整 |
 | 搜索同屏或详情页入口竞争快照 | [入口观察](references/input-and-evidence.md#流量入口观察与交接)；只取指定页面/对象，不重锁组、不全读 VOC、不追加视觉简报 |
 | 变化复核 | [增量刷新](references/incremental-refresh.md)；只对实质变化对象重开深拆 |
+| 评论归属、报价比较或事件时间线的记录校验 | [证据检查](references/evidence-checks.md)；只检查本次用到的部分，不追加其他研究 |
 | 卖家精灵 MCP、网页、扩展或导出取数 | [采集方法](references/seller-sprite-acquisition.md) |
 | 组织竞品分析报告 | [报告契约](references/report-contract.md)，按档位交付 |
 | 明确要求拍摄/图片/视频/A+设计交接 | [视觉交接](references/visual-handoff.md)；只看竞品视觉不触发我方简报，最终生图需用户明确请求 |
@@ -40,7 +41,7 @@ description: "锁定亚马逊对标竞品、对比我方与竞品的关键词点
 
 1. 最低输入为可确认站点及有效 ASIN；对标锁定也可由产品方向/类目 seed 开始。保留用户全部 ASIN 和原顺序，记录变体、币种、目标及输入角色。只有身份/站点无法确认才阻塞；缺我方证据可继续采集并标待验证。
 2. 上游 ID 有就原样保留（选品阶段已冻结，`project_id / selection_run_id / candidate_id` 没有就留空，不编造，见 [追溯规则](../xander-operations/references/lineage-and-selection.md)），事实和证据 ID 照常保留；经营上下文及 context_id / operating_context_sha256 核对后原样透传，新观察放 competitor_context_updates。不要重算利润底线、路线或补货能力。
-3. 页面、图库/A+、VOC、市场估算按会改变结论的需求采集。视觉判断实际看图，VOC 写样本范围；SellerSprite 按当前 schema 优先使用并标估算。每源一次聚焦获取加一次合理替代仍失败就记缺口，不无限换路径。
+3. 页面、图库/A+、VOC、市场估算按会改变结论的需求采集。视觉判断实际看图；评论归属、报价比较、事件时间线在交付前按 [证据检查](references/evidence-checks.md) 校验适用记录，能执行脚本时运行检查器，否则明确手工核对范围。SellerSprite 按当前 schema 优先使用并标估算。每源一次聚焦获取加一次合理替代仍失败就记缺口，不无限换路径。
 4. 锁定按参考核对身份、变体、套装与价位，使用统一角色/锁定状态及研究深度。所有评分携带 basis 与 evidence_ids；无效/待定身份不伪造评分。用户已给足对象时仅补缺失角色，不任意扩样。
 5. 区分产品、Offer、表达、证据与伪缺口，正面保留对手优势。最终机会必须同时符合高价值需求、竞品缺口、我方可证明、可视化和合规。
 6. 深度档评分全部机会；极速档只评分最终 3–5 个候选。输出一个主突破口、最多两个辅助购买理由、必须守住及明确不打，并按报告/视觉契约交付。
@@ -60,7 +61,7 @@ description: "锁定亚马逊对标竞品、对比我方与竞品的关键词点
 - 深度档适用检查未齐或任一核心发布项无法完成为 PROVISIONAL，单项可标待验证/BLOCKED；全部核心交付不成立才整体 BLOCKED。直接发布必须核验当前官方图片/A+规则，未核验至少 PROVISIONAL。
 - 证据足以完成用户范围就停止，不机械追加视觉任务、全量词库或整套尽调。
 
-正式锁定用 [score_benchmark_candidates.py](scripts/score_benchmark_candidates.py)；机会排序用 [score_breakthroughs.py](scripts/score_breakthroughs.py)。脚本在本技能 scripts 目录，解析绝对路径运行，不依赖项目当前目录。具体参数和维度分别见对应参考。
+正式锁定用 [score_benchmark_candidates.py](scripts/score_benchmark_candidates.py)；机会排序用 [score_breakthroughs.py](scripts/score_breakthroughs.py)；证据记录校验用 [validate_competitor_evidence.py](scripts/validate_competitor_evidence.py)。检查器只核对输入记录，不替代来源阅读、机会评分或已有 READY / PROVISIONAL / BLOCKED 判断。脚本在本技能 scripts 目录，解析绝对路径运行，不依赖项目当前目录。具体参数和维度分别见对应参考。
 
 ## 收尾
 
