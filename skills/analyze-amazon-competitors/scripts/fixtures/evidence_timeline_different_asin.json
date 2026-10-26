@@ -1,0 +1,45 @@
+{
+  "as_of": "2026-10-26T02:00:00+08:00",
+  "events": [
+    {
+      "id": "historical-model",
+      "kind": "SNAPSHOT",
+      "source_ref": "historical/model-a.json#ordinary-price",
+      "first_observed_at": "2026-10-23T09:00:00+08:00",
+      "actual_changed_at": null,
+      "asin": "B000000001",
+      "variant": "black",
+      "marketplace": "US",
+      "pack_count": 2,
+      "currency": "USD",
+      "region": "US-90060",
+      "eligibility": "ALL_SHOPPERS",
+      "context": "retail-child-ordinary-price-before-tax-shipping-season-a",
+      "values": {"price": 32.99}
+    },
+    {
+      "id": "current-other-model",
+      "kind": "SNAPSHOT",
+      "source_ref": "current/model-b.json#ordinary-price",
+      "first_observed_at": "2026-10-26T01:30:00+08:00",
+      "actual_changed_at": null,
+      "asin": "B000000002",
+      "variant": "black",
+      "marketplace": "US",
+      "pack_count": 2,
+      "currency": "USD",
+      "region": "US-90060",
+      "eligibility": "ALL_SHOPPERS",
+      "context": "retail-child-ordinary-price-before-tax-shipping-season-a",
+      "values": {"price": 19.99}
+    }
+  ],
+  "comparisons": [
+    {
+      "kind": "CHANGE",
+      "before_event_id": "historical-model",
+      "after_event_id": "current-other-model",
+      "field": "price"
+    }
+  ]
+}

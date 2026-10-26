@@ -1,0 +1,249 @@
+{
+  "targets": [
+    {
+      "marketplace": "US",
+      "asin": "B000000101"
+    },
+    {
+      "marketplace": "US",
+      "asin": "B000000102"
+    },
+    {
+      "marketplace": "US",
+      "asin": "B000000103"
+    }
+  ],
+  "pages": [
+    {
+      "marketplace": "US",
+      "host_asin": "B000000101",
+      "access_status": "OBSERVED",
+      "source_locator": "anonymized/page-1.html",
+      "captured_at": "2026-10-25T17:37:00Z",
+      "sampling": {
+        "method": "detail-page visible reviews; anonymized original 24-to-8-to-0 metadata",
+        "sort_order": "TOP"
+      },
+      "reviews": [
+        {
+          "review_id": "ANON-REVIEW-1",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-01",
+          "source_locator": "anonymized/page-1.html#review-1",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-2",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-09",
+          "source_locator": "anonymized/page-1.html#review-2",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-3",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-09-21",
+          "source_locator": "anonymized/page-1.html#review-3",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-4",
+          "review_variant_asin": "B000000203",
+          "review_date": "2026-09-07",
+          "source_locator": "anonymized/page-1.html#review-4",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-5",
+          "review_variant_asin": "B000000204",
+          "review_date": "2026-08-30",
+          "source_locator": "anonymized/page-1.html#review-5",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-6",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-08-29",
+          "source_locator": "anonymized/page-1.html#review-6",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-7",
+          "review_variant_asin": "B000000205",
+          "review_date": "2026-09-12",
+          "source_locator": "anonymized/page-1.html#review-7",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-8",
+          "review_variant_asin": "B000000206",
+          "review_date": "2026-09-02",
+          "source_locator": "anonymized/page-1.html#review-8",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        }
+      ]
+    },
+    {
+      "marketplace": "US",
+      "host_asin": "B000000102",
+      "access_status": "OBSERVED",
+      "source_locator": "anonymized/page-2.html",
+      "captured_at": "2026-10-25T17:38:00Z",
+      "sampling": {
+        "method": "detail-page visible reviews; anonymized original 24-to-8-to-0 metadata",
+        "sort_order": "TOP"
+      },
+      "reviews": [
+        {
+          "review_id": "ANON-REVIEW-1",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-01",
+          "source_locator": "anonymized/page-2.html#review-1",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-2",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-09",
+          "source_locator": "anonymized/page-2.html#review-2",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-3",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-09-21",
+          "source_locator": "anonymized/page-2.html#review-3",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-4",
+          "review_variant_asin": "B000000203",
+          "review_date": "2026-09-07",
+          "source_locator": "anonymized/page-2.html#review-4",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-5",
+          "review_variant_asin": "B000000204",
+          "review_date": "2026-08-30",
+          "source_locator": "anonymized/page-2.html#review-5",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-6",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-08-29",
+          "source_locator": "anonymized/page-2.html#review-6",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-7",
+          "review_variant_asin": "B000000205",
+          "review_date": "2026-09-12",
+          "source_locator": "anonymized/page-2.html#review-7",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-8",
+          "review_variant_asin": "B000000206",
+          "review_date": "2026-09-02",
+          "source_locator": "anonymized/page-2.html#review-8",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        }
+      ]
+    },
+    {
+      "marketplace": "US",
+      "host_asin": "B000000103",
+      "access_status": "OBSERVED",
+      "source_locator": "anonymized/page-3.html",
+      "captured_at": "2026-10-25T17:39:00Z",
+      "sampling": {
+        "method": "detail-page visible reviews; anonymized original 24-to-8-to-0 metadata",
+        "sort_order": "TOP"
+      },
+      "reviews": [
+        {
+          "review_id": "ANON-REVIEW-1",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-01",
+          "source_locator": "anonymized/page-3.html#review-1",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-2",
+          "review_variant_asin": "B000000201",
+          "review_date": "2026-09-09",
+          "source_locator": "anonymized/page-3.html#review-2",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-3",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-09-21",
+          "source_locator": "anonymized/page-3.html#review-3",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-4",
+          "review_variant_asin": "B000000203",
+          "review_date": "2026-09-07",
+          "source_locator": "anonymized/page-3.html#review-4",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-5",
+          "review_variant_asin": "B000000204",
+          "review_date": "2026-08-30",
+          "source_locator": "anonymized/page-3.html#review-5",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-6",
+          "review_variant_asin": "B000000202",
+          "review_date": "2026-08-29",
+          "source_locator": "anonymized/page-3.html#review-6",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-7",
+          "review_variant_asin": "B000000205",
+          "review_date": "2026-09-12",
+          "source_locator": "anonymized/page-3.html#review-7",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        },
+        {
+          "review_id": "ANON-REVIEW-8",
+          "review_variant_asin": "B000000206",
+          "review_date": "2026-09-02",
+          "source_locator": "anonymized/page-3.html#review-8",
+          "evidence_kind": "RAW_REVIEW",
+          "rating": 5
+        }
+      ]
+    }
+  ]
+}

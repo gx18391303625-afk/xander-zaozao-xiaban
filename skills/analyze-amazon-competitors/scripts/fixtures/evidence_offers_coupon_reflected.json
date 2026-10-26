@@ -1,0 +1,100 @@
+{
+  "quotes": [
+    {
+      "id": "base",
+      "product_id": "ANON-base",
+      "selected_variant": "selected-blue",
+      "source_ids": [
+        "SYNTHETIC-PAGE-base"
+      ],
+      "observed_at": "2026-10-25T17:30:00Z",
+      "marketplace": "US",
+      "region": "US-90060",
+      "currency": "USD",
+      "demand_phase": "RISING",
+      "kind": "NORMAL",
+      "amount": "19.99",
+      "basis": "PACK",
+      "unit_label": "hand-warmer",
+      "pack_units": 2,
+      "pack_status": "CONSISTENT"
+    },
+    {
+      "id": "coupon-price",
+      "product_id": "ANON-base",
+      "selected_variant": "selected-blue",
+      "source_ids": [
+        "SYNTHETIC-PAGE-base"
+      ],
+      "observed_at": "2026-10-25T17:30:00Z",
+      "marketplace": "US",
+      "region": "US-90060",
+      "currency": "USD",
+      "demand_phase": "RISING",
+      "kind": "CONDITIONAL",
+      "amount": "14.99",
+      "basis": "PACK",
+      "unit_label": "hand-warmer",
+      "pack_units": 2,
+      "pack_status": "CONSISTENT",
+      "required_buyer": "PUBLIC",
+      "conditions": [
+        "CLIPPED-25"
+      ],
+      "eligibility": "VERIFIED",
+      "discounts_reflected": [
+        "coupon-25"
+      ],
+      "calculation": {
+        "base_quote_id": "base",
+        "promotion_id": "coupon-25"
+      }
+    },
+    {
+      "id": "double-subtracted",
+      "product_id": "ANON-base",
+      "selected_variant": "selected-blue",
+      "source_ids": [
+        "SYNTHETIC-PAGE-base"
+      ],
+      "observed_at": "2026-10-25T17:30:00Z",
+      "marketplace": "US",
+      "region": "US-90060",
+      "currency": "USD",
+      "demand_phase": "RISING",
+      "kind": "CONDITIONAL",
+      "amount": "11.24",
+      "basis": "PACK",
+      "unit_label": "hand-warmer",
+      "pack_units": 2,
+      "pack_status": "CONSISTENT",
+      "required_buyer": "PUBLIC",
+      "conditions": [
+        "CLIPPED-25"
+      ],
+      "eligibility": "VERIFIED",
+      "discounts_reflected": [
+        "coupon-25"
+      ],
+      "calculation": {
+        "base_quote_id": "coupon-price",
+        "promotion_id": "coupon-25"
+      }
+    }
+  ],
+  "promotions": [
+    {
+      "id": "coupon-25",
+      "kind": "COUPON",
+      "discount_type": "PERCENT",
+      "value": "25",
+      "conditions": [
+        "CLIPPED-25"
+      ],
+      "eligibility": "VERIFIED",
+      "applies_to": [
+        "base"
+      ]
+    }
+  ]
+}
