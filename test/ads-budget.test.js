@@ -60,7 +60,16 @@ function fixture() {
       return { portfolios: { success: [{ index: 0, portfolioId: id }], error: [] } };
     }
     if (path === '/sd/campaigns') return copy(Object.values(state.campaigns).filter((c) => c.adProduct === 'SPONSORED_DISPLAY' && c.portfolioId === options.query.portfolioIdFilter).slice(options.query.startIndex, options.query.startIndex + options.query.count));
-    if (path === '/adsApi/v1/query/campaigns') return { campaigns: copy(Object.values(state.campaigns).filter((c) => body.adProductFilter.include.includes(c.adProduct || 'SPONSORED_PRODUCTS') && (!body.campaignIdFilter || body.campaignIdFilter.include.includes(c.campaignId)) && (!body.portfolioIdFilter || body.portfolioIdFilter.include.includes(c.portfolioId)))) };
+    if (path === '/adsApi/v1/query/campaigns') {
+      const includesSB = body.adProductFilter.include.includes('SPONSORED_BRANDS');
+      const limit = includesSB ? 100 : 1000;
+      assert.ok(Number.isInteger(body.maxResults) && body.maxResults > 0 && body.maxResults <= limit, `Synthetic ${includesSB ? 'SB' : 'SP'} maxResults must be between 1 and ${limit}`);
+      const rows = Object.values(state.campaigns).filter((c) => body.adProductFilter.include.includes(c.adProduct || 'SPONSORED_PRODUCTS') && (!body.campaignIdFilter || body.campaignIdFilter.include.includes(c.campaignId)) && (!body.portfolioIdFilter || body.portfolioIdFilter.include.includes(c.portfolioId)));
+      if (body.nextToken) assert.match(body.nextToken, /^synthetic-campaign-page-\d+$/);
+      const start = body.nextToken ? Number(body.nextToken.slice('synthetic-campaign-page-'.length)) : 0;
+      const end = start + body.maxResults;
+      return { campaigns: copy(rows.slice(start, end)), ...(end < rows.length ? { nextToken: `synthetic-campaign-page-${end}` } : {}) };
+    }
     if (path === '/adsApi/v1/update/campaigns') {
       assert.equal(options.isWrite, true);
       Object.assign(state.campaigns[body.campaigns[0].campaignId], copy(body.campaigns[0]));
@@ -83,6 +92,22 @@ async function execute(op, c, options) {
   return { ...p, sent, rb };
 }
 const writes = (s) => s.calls.filter((x) => x.isWrite);
+function seedPaginatedPortfolio(state) {
+  const portfolioId = 'synthetic-paginated-portfolio';
+  state.portfolios.push({ portfolioId, ...portfolio() });
+  state.campaigns['101'].portfolioId = portfolioId;
+  const scope = ['SP:101'];
+  for (const [adProduct, apiProduct, base, count] of [['SB', 'SPONSORED_BRANDS', 2000, 103], ['SD', 'SPONSORED_DISPLAY', 3000, 101]]) {
+    for (let i = 0; i < count; i++) {
+      const campaignId = String(base + i);
+      state.campaigns[campaignId] = { campaignId, adProduct: apiProduct, name: `Synthetic ${adProduct} ${i}`, state: 'ENABLED', portfolioId };
+      scope.push(`${adProduct}:${campaignId}`);
+    }
+    const excludedId = String(base + count);
+    state.campaigns[excludedId] = { campaignId: excludedId, adProduct: apiProduct, name: `Synthetic unrelated ${adProduct}`, state: 'ENABLED', portfolioId: 'synthetic-other-portfolio' };
+  }
+  return { portfolioId, scope: scope.sort() };
+}
 
 test('SP rule creation uses dedicated schema, checkpoints every step and verifies all associations', async () => {
   const { rules, state } = fixture(), journal = [];
@@ -209,6 +234,63 @@ test('portfolio updates and explicit NO_CAP use exact approved values', async ()
   assert.equal(r.rb.match, true); assert.equal(r.value.affectedSPCampaigns.length, 1);
   assert.deepEqual(state.portfolios[0].budget, { policy: 'NO_CAP', currencyCode: 'USD', amount: null, startDate: null, endDate: null });
   assert.equal(state.portfolios[0].name, 'Synthetic portfolio');
+});
+
+test('NO_CAP prepare includes every SP, SB and SD campaign across capped pages without removing membership', async () => {
+  const { portfolios, state } = fixture();
+  const { portfolioId, scope } = seedPaginatedPortfolio(state);
+  const c = { action: 'update', portfolioId, portfolio: { budget: { policy: 'NO_CAP', currencyCode: 'USD' } } };
+  const p = await prepare(portfolios, c);
+  const snapshotScope = (rows) => rows.map((x) => `${x.adProduct}:${x.campaignId}`).sort();
+  assert.deepEqual(snapshotScope(p.r.old.campaigns), scope, 'the before snapshot must include all 205 affected campaigns');
+  assert.deepEqual(snapshotScope(p.value.affectedCampaigns), scope, 'the approval snapshot must retain campaigns from later pages');
+  assert.deepEqual(snapshotScope(p.value.affectedSPCampaigns), ['SP:101']);
+  const unified = state.calls.filter((x) => x.path === '/adsApi/v1/query/campaigns');
+  const sb = unified.filter((x) => x.body.adProductFilter.include.includes('SPONSORED_BRANDS'));
+  assert.equal(sb.length, 2, '100 SB campaigns on the first page and three on the next');
+  assert.ok(sb.every((x) => x.body.maxResults <= 100));
+  assert.equal(sb[0].body.nextToken, undefined);
+  assert.equal(sb[1].body.nextToken, 'synthetic-campaign-page-100');
+  assert.ok(unified.some((x) => x.body.adProductFilter.include.includes('SPONSORED_PRODUCTS')));
+  assert.ok(unified.every((x) => x.method === 'POST' && x.body.portfolioIdFilter.include.length === 1 && x.body.portfolioIdFilter.include[0] === portfolioId));
+  const sd = state.calls.filter((x) => x.path === '/sd/campaigns');
+  assert.deepEqual(sd.map((x) => [x.method, x.query.startIndex, x.query.count]), [['GET', 0, 100], ['GET', 100, 100]]);
+  assert.ok(sd.every((x) => x.query.portfolioIdFilter === portfolioId));
+  assert.equal(p.value.action, 'update');
+  assert.equal(p.request.action, 'update');
+  assert.deepEqual(p.request.campaignIds, [], 'removing the budget cap must not remove campaigns from the portfolio');
+  assert.equal(p.request.objectRequest.method, 'PUT');
+  assert.equal(p.request.objectRequest.path, '/portfolios');
+  assert.deepEqual(p.request.objectRequest.body, { portfolios: [{ portfolioId, budget: { policy: 'NO_CAP', currencyCode: 'USD', amount: null, startDate: null, endDate: null } }] });
+  assert.equal(writes(state).length, 0, 'prepare must only read the account');
+});
+
+test('NO_CAP prepare rejects a failed SB second page instead of approving an incomplete scope', async () => {
+  const { portfolios, state } = fixture();
+  const { portfolioId } = seedPaginatedPortfolio(state);
+  state.fail = (call) => {
+    if (call.path === '/adsApi/v1/query/campaigns' && call.body.adProductFilter.include.includes('SPONSORED_BRANDS') && call.body.nextToken) {
+      throw new Error('Synthetic SB second page failed');
+    }
+  };
+  await assert.rejects(prepare(portfolios, { action: 'update', portfolioId, portfolio: { budget: { policy: 'NO_CAP', currencyCode: 'USD' } } }), /Synthetic SB second page failed/);
+  const sb = state.calls.filter((x) => x.path === '/adsApi/v1/query/campaigns' && x.body.adProductFilter.include.includes('SPONSORED_BRANDS'));
+  assert.equal(sb.length, 2);
+  assert.equal(sb[1].body.nextToken, 'synthetic-campaign-page-100');
+  assert.ok(sb.every((x) => x.body.maxResults <= 100));
+  assert.equal(writes(state).length, 0);
+  assert.equal(state.portfolios[0].budget.policy, 'MONTHLY_RECURRING');
+});
+
+test('NO_CAP prepare also rejects an inaccessible SD continuation page', async () => {
+  const { portfolios, state } = fixture();
+  const { portfolioId } = seedPaginatedPortfolio(state);
+  state.fail = (call) => {
+    if (call.path === '/sd/campaigns' && call.query.startIndex === 100) throw new Error('Synthetic SD second page failed');
+  };
+  await assert.rejects(prepare(portfolios, { action: 'update', portfolioId, portfolio: { budget: { policy: 'NO_CAP', currencyCode: 'USD' } } }), /Synthetic SD second page failed/);
+  assert.deepEqual(state.calls.filter((x) => x.path === '/sd/campaigns').map((x) => x.query.startIndex), [0, 100]);
+  assert.equal(writes(state).length, 0);
 });
 
 test('portfolio approval lists SP, SB and SD; changed membership prevents verification', async () => {

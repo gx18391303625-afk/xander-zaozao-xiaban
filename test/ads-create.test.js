@@ -16,19 +16,23 @@ const server = http.createServer(async (req, res) => {
   const json = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
   if (url.pathname === '/auth/o2/token') return json(200, { access_token: 'FAKE-ADS-TOKEN', expires_in: 3600 });
   const body = raw ? JSON.parse(raw) : null;
-  state.calls.push({ path: url.pathname, body: copy(body), method: req.method });
+  const call = { path: url.pathname, body: copy(body), method: req.method };
+  state.calls.push(call);
   if (url.pathname === '/v2/profiles') return json(200, [{ profileId: 987, countryCode: state.country, currencyCode: state.currency, accountInfo: { type: state.profileType } }]);
   const match = url.pathname.match(/^\/adsApi\/v1\/(query|create|update)\/(campaigns|adGroups|ads)$/);
   if (!match || req.method !== 'POST') return json(400, { code: 'BAD_REQUEST' });
   const [, action, resource] = match; const singular = singulars[resource]; const idField = `${singular}Id`;
   if (action === 'query') {
+    if (!Number.isInteger(body.maxResults) || body.maxResults < 1 || body.maxResults > 1000) return json(400, { message: 'SP maxResults must be an integer between 1 and 1000' });
+    if (state.mode === `query-failure:${resource}` && body.nextToken) return json(400, { message: 'Synthetic second-page read failure' });
     const found = state[resource].filter((item) => Object.entries(body).every(([key, value]) => {
       if (key === 'nameFilter') return value.include.includes(item.name);
       if (key.endsWith('Filter')) return value.include.includes(String(item[key.slice(0, -6)]));
       return true;
     }));
-    const offset = Number(body.nextToken || 0); const page = found.slice(offset, offset + state.pageSize);
-    return json(200, { [resource]: page, ...(state.mode === 'loop' ? { nextToken: '1' } : offset + page.length < found.length ? { nextToken: String(offset + page.length) } : {}) });
+    const offset = Number(body.nextToken || 0); const page = found.slice(offset, offset + Math.min(state.pageSize, body.maxResults));
+    call.responseCount = page.length;
+    return json(200, { [resource]: page, ...(state.mode === `loop:${resource}` ? { nextToken: '1' } : offset + page.length < found.length ? { nextToken: String(offset + page.length) } : {}) });
   }
   if (action === 'update') {
     const value = body.campaigns[0]; const item = state.campaigns.find((x) => x.campaignId === value.campaignId);
@@ -76,6 +80,20 @@ function seedParents() {
   state.campaigns.push({ campaignId: 'C-existing', name: 'Existing', adProduct: SP, state: 'PAUSED', optimizations: { bidSettings: { bidStrategy: 'SALES_DOWN_ONLY', bidAdjustments: { audienceBidAdjustments: [{ audienceId: 'audience-fixture', percentage: 20 }], creativeBidAdjustments: [{ creativeType: 'SPOTLIGHT', percentage: 5 }], placementBidAdjustments: [{ placement: 'REST_OF_SEARCH', percentage: 10 }] } } } });
   state.adGroups.push({ adGroupId: 'G-existing', campaignId: 'C-existing', name: 'Existing group', state: 'PAUSED', adProduct: SP, bid: { defaultBid: 0.7 } });
 }
+function seedQueryPages(resource, { duplicate = false } = {}) {
+  state.campaigns = []; state.adGroups = []; state.ads = []; state.calls = [];
+  seedParents();
+  const c = input(resource === 'campaigns' ? {} : resource === 'adGroups' ? { mode: 'adGroup', campaignId: 'C-existing' } : { mode: 'ads', adGroupId: 'G-existing' });
+  state[resource] = Array.from({ length: 1001 }, (_, i) => {
+    const last = duplicate && i === 1000;
+    const item = { [`${singulars[resource]}Id`]: `SYNTHETIC-${resource}-${i}`, adProduct: SP, state: last ? 'ARCHIVED' : 'PAUSED' };
+    if (resource === 'campaigns') return { ...item, name: last ? c.campaignName.toUpperCase() : `Synthetic campaign ${i}` };
+    if (resource === 'adGroups') return { ...item, campaignId: 'C-existing', name: last ? c.adGroupName.toUpperCase() : `Synthetic group ${i}` };
+    return { ...item, campaignId: 'C-existing', adGroupId: 'G-existing', creative: { productCreative: { productCreativeSettings: { advertisedProduct: { productIdType: 'SKU', productId: last ? c.products[0].sku : `SYNTHETIC-OTHER-SKU-${i}` } } } } };
+  });
+  return c;
+}
+const queries = (resource) => state.calls.filter((call) => call.path === `/adsApi/v1/query/${resource}`);
 test.beforeEach(() => { state.campaigns = []; state.adGroups = []; state.ads = []; state.calls = []; state.mode = null; state.pageSize = 1000; state.profileType = 'seller'; state.country = 'US'; state.currency = 'USD'; });
 test.after(() => server.close());
 
@@ -112,15 +130,50 @@ test('readback checks approved budget, targeting, dates, strategy, parent, produ
   }
 });
 
-test('uniqueness checks paginate and include archived names, case-insensitively', async () => {
-  state.pageSize = 1;
-  state.campaigns = [{ campaignId: 'C-1', name: 'First', adProduct: SP, state: 'PAUSED' }, { campaignId: 'C-2', name: 'FIXTURE CAMPAIGN', adProduct: SP, state: 'ARCHIVED' }];
-  const c = input(); const r = await create.read(store, c);
-  assert.throws(() => create.check(c, r), /重复创建/);
-  assert.ok(state.calls.some((x) => x.body?.nextToken === '1')); assert.equal(writes().length, 0);
+test('SP uniqueness checks exhaust 1000-item pages and find archived duplicates on the last page', async () => {
+  state.pageSize = 2000; // The mock must still honor the requested page size.
+  for (const resource of ['campaigns', 'adGroups', 'ads']) {
+    const c = seedQueryPages(resource, { duplicate: true });
+    const r = await create.read(store, c);
+    assert.equal(r.entity.duplicate.length, 1, resource);
+    assert.equal(r.entity.duplicate[0][`${singulars[resource]}Id`], `SYNTHETIC-${resource}-1000`);
+    assert.throws(() => create.check(c, r), /重复创建/);
+    assert.deepEqual(queries(resource).map((call) => call.body.maxResults), [1000, 1000], resource);
+    assert.deepEqual(queries(resource).map((call) => call.body.nextToken), [undefined, '1000'], resource);
+    assert.deepEqual(queries(resource).map((call) => call.responseCount), [1000, 1], resource);
+    assert.ok(queries(resource).every((call) => call.responseCount <= call.body.maxResults));
+    assert.equal(writes().length, 0);
+  }
 });
 
-test('pagination loop fails closed', async () => { state.mode = 'loop'; await assert.rejects(() => prepare(), /分页令牌循环/); assert.equal(writes().length, 0); });
+test('SP second-page failure rejects reads and proposal preparation instead of using partial results', async () => {
+  for (const resource of ['campaigns', 'adGroups', 'ads']) {
+    const c = seedQueryPages(resource); state.mode = `query-failure:${resource}`;
+    await assert.rejects(() => create.read(store, c), /Synthetic second-page read failure/);
+    assert.deepEqual(queries(resource).map((call) => call.body.nextToken), [undefined, '1000'], resource);
+    assert.equal(queries(resource)[0].responseCount, 1000);
+    state.calls = [];
+    const proposal = await prepareChange({ store: store.alias, changes: [{ op: create.id, ...c }] });
+    assert.equal(proposal.ok, false, resource); assert.equal(proposal.proposalId, undefined);
+    assert.match(proposal.errors[0].error, /Synthetic second-page read failure/);
+    assert.deepEqual(queries(resource).map((call) => call.body.nextToken), [undefined, '1000'], resource);
+    assert.equal(writes().length, 0);
+  }
+});
+
+test('repeated pagination tokens reject reads and proposal preparation without writes', async () => {
+  for (const resource of ['campaigns', 'adGroups', 'ads']) {
+    const c = seedQueryPages(resource); state.mode = `loop:${resource}`;
+    await assert.rejects(() => create.read(store, c), /分页令牌循环/);
+    assert.deepEqual(queries(resource).map((call) => call.body.nextToken), [undefined, '1'], resource);
+    state.calls = [];
+    const proposal = await prepareChange({ store: store.alias, changes: [{ op: create.id, ...c }] });
+    assert.equal(proposal.ok, false, resource); assert.equal(proposal.proposalId, undefined);
+    assert.match(proposal.errors[0].error, /分页令牌循环/);
+    assert.deepEqual(queries(resource).map((call) => call.body.nextToken), [undefined, '1'], resource);
+    assert.equal(writes().length, 0);
+  }
+});
 
 test('explicit child rejection preserves successful campaign and stops remaining writes', async () => {
   const p = await prepare(); state.mode = 'reject:adGroups'; const { result, checkpoints } = await run(p);

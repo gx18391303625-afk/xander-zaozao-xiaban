@@ -19,6 +19,12 @@
 
 组合编辑会完整查询 SP、SB、SD 的关联活动，将全部名单加入审批内容；任何一类权限失败或分页不完整都会阻止编辑提案。执行前及执行后核对影响范围，出现新增/移出活动时不能把旧审批范围标为已验证。SD 查询使用官方 `GET /sd/campaigns` 的 `portfolioIdFilter`、`startIndex`、`count`。[SD 官方合约](https://d3a0d0y2hgofx6.cloudfront.net/openapi/en-us/sponsored-display/3-0/openapi.yaml)
 
+### 活动查询分页（2026-10-26 修复）
+
+统一接口的 `campaigns`、`adGroups`、`ads` 查询按广告类型限制 `maxResults`：SP 最大 1000，SB 最大 100。组合范围查询分别使用对应页长；普通列表原有的 100 条默认页长保留，小于上限的指定页长也保留。共享参数构造同时处理显式参数和 `filters.maxResults`，多广告类型查询取较小上限。以上采用固定版本的 [SP OpenAPI](https://github.com/amzn/ads-advanced-tools-docs/blob/e25aace0ec07997c113dac48f333298472243558/unified-campaign-management-migration-skills/api-specs/unified-api-sp.json) 与 [SB OpenAPI](https://github.com/amzn/ads-advanced-tools-docs/blob/e25aace0ec07997c113dac48f333298472243558/unified-campaign-management-migration-skills/api-specs/unified-api-sb.json)。SD 仍用 `count:100` 与递增 `startIndex`。
+
+SP/SB 必须继续读取到 `nextToken` 消失，不能按本页条数提前结束；SD 读取至返回不足 100 条。任何后续页异常都会阻止组合编辑。每页数量是 Amazon 查询参数，与用户的每份提案项数上限无关。`action:update` 配合 `budget.policy:NO_CAP` 仍只构造组合预算更新，不构造活动移出请求。
+
 ## 官方接口核实（2026-10-23）
 
 以下下载地址由 Amazon 官方开发者门户的 [导航清单](https://d3a0d0y2hgofx6.cloudfront.net/en-us/toc2.json) 引用，不是第三方 SDK 推测。
