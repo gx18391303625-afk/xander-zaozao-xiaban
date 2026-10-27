@@ -1,6 +1,6 @@
 # Listing 图片与 A+ 内容
 
-核对日期：2026-10-23。实现位于 `lib/ops-content.js`，契约测试位于 `test/content.test.js`。这两项能力走官方 SP-API，不依赖紫鸟。默认写入开关仍关闭；每一步都经过精确提案、审批、演练、提交和回读。
+核对日期：2026-10-27。实现位于 `lib/ops-content.js` 与 `lib/aplus-document.js`，契约及提案流程测试位于 `test/content.test.js`、`test/aplus-proposal-safety.test.js`。这两项能力走官方 SP-API，不依赖紫鸟。默认写入开关仍关闭；每一步都经过精确提案、审批、演练、提交和回读。
 
 ## 资格与区域
 
@@ -66,11 +66,21 @@
 
 `create` / `update` 中的 `asinSet` **只用于资格校验**，不执行关联。拿到返回的 key 后，分别准备 `associate` 和 `submit` 提案。关联操作会替换全部 ASIN，界面会列出删除项；删除关联可能使现有 A+ 下线，给已批准内容新增关联可能使内容展示到新 ASIN。[官方管理与关联说明](https://developer-docs.amazon.com/sp-api/docs/manage-aplus-content)
 
-所有动作都先调用 `POST /contentAsinValidations`。HTTP 200 内仍可能含 errors；只要有 errors 就拒绝提案，submit 还要求先解决 warnings。提交时已有 `SUBMITTED` / `APPROVED` 状态会阻止重复提交。完整模块结构及账户特定限制由 Amazon 实时校验。[官方创建与审核流程](https://developer-docs.amazon.com/sp-api/docs/create-edit-publish-aplus-content)
+所有动作都先调用 `POST /contentAsinValidations`。HTTP 200 内仍可能含 errors；校验响应必须有 errors 数组，warnings 若存在也必须为数组。只要有 errors 就拒绝提案，submit 还要求先解决 warnings。提交时已有 `SUBMITTED` / `APPROVED` 状态会阻止重复提交。完整模块结构及账户特定限制由 Amazon 实时校验。[官方创建与审核流程](https://developer-docs.amazon.com/sp-api/docs/create-edit-publish-aplus-content)
 
 ### A+ 图片素材交接
 
 当前支持已上传素材的 `uploadDestinationId`、`imageCropSpecification` 和 `altText`。A+ 不直接接受 Listing 的公开 URL，也不能把本机文件路径当素材 ID。没有已上传素材时，按官方 Uploads API 的 `createUploadDestinationForResource` 获取目标、上传图片并确认 2xx 后，才能在内容里引用 ID；本版没有自动上传本机素材的写入动作。也可由用户在 A+ Content Manager 准备素材，再用内容查询读取现有文档中的有效素材引用。需要网页登录时先协调时间，不抢占前台窗口。[官方素材上传步骤](https://developer-docs.amazon.com/sp-api/docs/create-edit-publish-aplus-content)
+
+### Premium 视频与空字段兼容（2.3.9）
+
+素材按官方类型图识别：`PREMIUM_HERO_VIDEO → premiumHeroVideo.heroVideo → VideoComponent` 使用 `videoMediaId`、`imageMediaId`；`ImageComponent` 使用 `uploadDestinationId`。不能仅凭对象含有 `imageCropSpecification` 就判定它是图片。三个 ID 都必须是非空字符串，拒绝可辨识的 URL/路径替代及错误类型；ID 的真实存在性、归属和资格仍交由官方校验。视频、图文视频和视频轮播共用相同类型检查。
+
+固定依据为 [Amazon A+ 模型 7dcc8e9](https://github.com/amzn/selling-partner-api-models/blob/7dcc8e9616e51d637f2065452b357655b623f880/models/aplus-content-api-model/aplusContent_2020-11-01.json)。该模型把视频裁剪列为 required，并未声明 nullable；本机保存的官方回读却返回视频 `imageCropSpecification: null`，原文档省略了它。因此这里只作 **VideoComponent 裁剪的兼容例外**，接纳 null/省略并继续官方校验，不推断图片裁剪也可省略，不伪造素材 ID 或裁剪尺寸。
+
+回读比较沿 `ContentDocument` 的已知组件类型，仅将可选字段缺失与 null 视为等价，并增加上述视频裁剪例外；非空裁剪对象绝不归空。必填字段、媒体 ID、altText/文字、尺寸/偏移、数组长度与顺序、空数组/空字符串/false/0、未知字段均保留严格比较。普通图片即使混入视频 ID 也不能绕过上传 ID 检查。原始官方回读、请求正文、提案旧值和哈希不被归一化或改写，执行前旧值并发检查仍保持原有严格行为。
+
+类型元数据位于 `lib/aplus-schema-types.js`，可通过 `scripts/build-aplus-schema.mjs` 从固定 SHA-256 的官方模型重新生成；它只帮助导航组件，不替代完整 schema 与账户资格校验。衍生元数据许可见 `docs/licenses/amazon-sp-api-models.txt`。
 
 ## 状态、去重和核验
 

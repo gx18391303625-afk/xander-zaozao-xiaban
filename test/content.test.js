@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createContentApi } from '../lib/ops-content.js';
 import { isolate } from './helpers.js';
+import { aplusDocumentsMatch } from '../lib/aplus-document.js';
 isolate();
 
 const US = 'ATVPDKIKX0DER';
@@ -11,7 +12,7 @@ const doc = (name = 'Synthetic A+ draft') => ({ name, contentType: 'EBC', locale
 
 function fixture({ persistent = false } = {}) {
   const state = { calls: [], docs: new Map(), imageAttrs: { main_product_image_locator: [{ marketplace_id: US, media_location: 'https://example.com/old.jpg' }, { marketplace_id: 'A2EUQ1WTGCTBG2', media_location: 'https://example.com/canada.jpg' }], item_name: [{ value: 'Unrelated title' }] },
-    imageSupported: ['main_product_image_locator', 'other_product_image_locator_1'], previewStatus: 'VALID', imageStatus: 'ACCEPTED', validation: {}, warnings: [], publishRecords: [],
+    imageSupported: ['main_product_image_locator', 'other_product_image_locator_1'], previewStatus: 'VALID', imageStatus: 'ACCEPTED', validation: { errors: [] }, warnings: [], publishRecords: [],
     clock: Date.parse('2026-10-23T00:00:00Z'), mode: null, listPageSize: 2, tokens: new Map() };
   function insert(name = 'Existing synthetic draft', asins = ['B000000001']) {
     const key = `CONTENT${state.docs.size + 1}`;
@@ -179,10 +180,10 @@ test('A+ rejects validation errors on HTTP 200 and blocks approval with warnings
   assert.equal(validation.valid, false);
   assert.equal(validation.submitted, false);
   await assert.rejects(prepare(op, { action: 'create', contentDocument: doc() }), /ASIN_NOT_ELIGIBLE/);
-  f.state.validation = { warnings: [{ code: 'WARNING', message: 'Synthetic review warning' }] };
+  f.state.validation = { errors: [], warnings: [{ code: 'WARNING', message: 'Synthetic review warning' }] };
   const key = f.insert();
   await assert.rejects(prepare(op, { action: 'submit', contentReferenceKey: key }), /校验警告/);
-  f.state.validation = {};
+  f.state.validation = { errors: [] };
   f.state.docs.get(key).asins = [];
   await assert.rejects(prepare(op, { action: 'submit', contentReferenceKey: key }), /没有关联 ASIN/);
   assert.equal(f.state.calls.filter((c) => c.isWrite).length, 0);
@@ -312,4 +313,182 @@ test('execution rechecks live image preview and A+ eligibility even if stored co
   await prepare(f.ops[1], c);
   f.state.validation = { errors: [{ code: 'ELIGIBILITY_CHANGED', message: 'Synthetic eligibility changed' }] };
   await assert.rejects(f.ops[1].read(store, c), /ELIGIBILITY_CHANGED/);
+});
+
+const crop = () => ({ size: { width: { value: 1464, units: 'pixels' }, height: { value: 600, units: 'pixels' } } });
+const media = () => ({ uploadDestinationId: 'synthetic-assets/path/image-01.jpg', imageCropSpecification: crop(), altText: 'Synthetic image' });
+const videoDoc = () => ({ ...doc('Synthetic premium video'), contentSubType: 'PREMIUM', contentModuleList: [
+  { contentModuleType: 'PREMIUM_HERO_VIDEO', premiumHeroVideo: { heroVideo: { videoMediaId: 'SYNTHETIC-VIDEO', imageMediaId: 'SYNTHETIC-THUMBNAIL' } } },
+  { contentModuleType: 'PREMIUM_FULL_BACKGROUND_IMAGE', premiumFullBackgroundImage: { desktopImage: media(), mobileImage: media() } },
+] });
+function withReadbackNulls(input) {
+  const value = clone(input);
+  const hero = value.contentModuleList[0];
+  hero.standardText = null;
+  hero.premiumHeroVideo.headline = null;
+  hero.premiumHeroVideo.footer = null;
+  hero.premiumHeroVideo.heroVideo.imageCropSpecification = null;
+  value.contentModuleList[1].premiumFullBackgroundImage.headline = null;
+  value.contentModuleList[1].premiumFullBackgroundImage.desktopImage.imageCropSpecification.offset = null;
+  return value;
+}
+
+test('A+ Premium video accepts null, omitted and populated crop without requiring an image upload ID', async () => {
+  for (const value of [undefined, null, crop()]) {
+    const f = fixture(); const key = f.insert();
+    const content = videoDoc();
+    if (value !== undefined) content.contentModuleList[0].premiumHeroVideo.heroVideo.imageCropSpecification = value;
+    f.state.docs.get(key).contentDocument = content;
+    const before = JSON.stringify(content);
+    const result = await prepare(f.ops[1], { action: 'submit', contentReferenceKey: key });
+    const validation = f.state.calls.find((call) => call.path.endsWith('/contentAsinValidations'));
+    assert.deepEqual(validation.body.contentDocument, content, 'official validation receives the unmodified document');
+    assert.deepEqual(result.newValue.contentDocument, content);
+    assert.equal(result.request.body, undefined);
+    assert.equal(JSON.stringify(content), before);
+    assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
+  }
+});
+
+test('A+ both video and thumbnail IDs remain mandatory strings in all three video module types', async () => {
+  const video = { videoMediaId: 'SYNTHETIC-VIDEO', imageMediaId: 'SYNTHETIC-THUMBNAIL', imageCropSpecification: null };
+  const modules = [
+    { contentModuleType: 'PREMIUM_HERO_VIDEO', premiumHeroVideo: { heroVideo: video } },
+    { contentModuleType: 'PREMIUM_VIDEO_TEXT', premiumVideoText: { positionType: 'LEFT', headline: { value: 'Synthetic' }, video } },
+    { contentModuleType: 'PREMIUM_VIDEO_IMAGE_CAROUSEL', premiumVideoImageCarousel: { carouselCards: [{ videoCarouselPanel: { video } }, { videoCarouselPanel: { video } }] } },
+  ];
+  for (const module of modules) {
+    const f = fixture();
+    const content = { ...doc(), contentModuleList: [clone(module)] };
+    await f.validateAplusContent(store, { contentDocument: content });
+    for (const field of ['videoMediaId', 'imageMediaId']) {
+      const invalid = clone(module);
+      const visit = (v) => { if (!v || typeof v !== 'object') return; if (field in v) v[field] = ' '; for (const child of Object.values(v)) visit(child); };
+      visit(invalid);
+      await assert.rejects(f.validateAplusContent(store, { contentDocument: { ...doc(), contentModuleList: [invalid] } }), new RegExp(field));
+    }
+  }
+});
+
+test('A+ ordinary images cannot bypass their upload ID with omitted crop or video-shaped extra fields', async () => {
+  for (const id of [undefined, null, '', ' ', 7, false, [], {}, 'https://example.com/image.jpg', 'file:///tmp/a.jpg', '/tmp/a.jpg', '../a.jpg', '~/a.jpg', 'C:\\photos\\a.jpg']) {
+    const f = fixture(); const content = videoDoc();
+    const image = content.contentModuleList[1].premiumFullBackgroundImage.desktopImage;
+    if (id === undefined) delete image.uploadDestinationId; else image.uploadDestinationId = id;
+    delete image.imageCropSpecification;
+    Object.assign(image, { videoMediaId: 'SYNTHETIC-VIDEO', imageMediaId: 'SYNTHETIC-THUMBNAIL' });
+    await assert.rejects(f.validateAplusContent(store, { contentDocument: content }), /uploadDestinationId/);
+    assert.equal(f.state.calls.length, 0, 'invalid IDs fail before validation or writes');
+  }
+});
+
+test('A+ known module discriminator and object type are checked without mistaking inactive null slots for modules', async () => {
+  for (const change of [
+    (d) => { d.contentModuleList[0].premiumHeroVideo = null; },
+    (d) => { d.contentModuleList[0].standardText = { body: { textList: [] } }; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage = 'SYNTHETIC-UPLOAD'; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage = null; },
+    (d) => { delete d.contentModuleList[1].premiumFullBackgroundImage.desktopImage; },
+  ]) {
+    const f = fixture(); const content = videoDoc(); change(content);
+    await assert.rejects(f.validateAplusContent(store, { contentDocument: content }), /模块|素材对象/);
+    assert.equal(f.state.calls.length, 0);
+  }
+  const f = fixture(); await f.validateAplusContent(store, { contentDocument: withReadbackNulls(videoDoc()) });
+});
+
+test('A+ null compatibility does not bypass official validation errors, warnings or malformed validation receipts', async () => {
+  for (const response of [undefined, null, [], {}, { errors: null }, { errors: {} }, { errors: '' }, { errors: [], warnings: null }, { errors: [], warnings: {} }]) {
+    const f = fixture(); f.state.validation = response === undefined ? null : response;
+    await assert.rejects(f.validateAplusContent(store, { contentDocument: withReadbackNulls(videoDoc()) }), /校验响应不完整/);
+  }
+  for (const response of [
+    { errors: [{ code: 'INVALID_MEDIA', message: 'Synthetic invalid media' }] },
+    { errors: [], warnings: [{ code: 'REVIEW_WARNING', message: 'Synthetic warning' }] },
+  ]) {
+    const f = fixture(); const key = f.insert();
+    f.state.docs.get(key).contentDocument = withReadbackNulls(videoDoc());
+    f.state.validation = response;
+    await assert.rejects(prepare(f.ops[1], { action: 'submit', contentReferenceKey: key }), /官方校验未通过|校验警告/);
+    assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
+  }
+});
+
+test('A+ Premium video still rejects submissions without ASINs and already submitted or approved documents', async () => {
+  for (const status of ['SUBMITTED', 'APPROVED', 'DRAFT']) {
+    const f = fixture(); const key = f.insert('Synthetic', status === 'DRAFT' ? [] : ['B000000001']);
+    Object.assign(f.state.docs.get(key), { contentDocument: withReadbackNulls(videoDoc()) });
+    f.state.docs.get(key).contentMetadata.status = status;
+    await assert.rejects(prepare(f.ops[1], { action: 'submit', contentReferenceKey: key }), /不重复提交|没有关联 ASIN/);
+    assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
+  }
+});
+
+test('A+ semantic readback accepts only typed empty fields, retains raw evidence and refuses redundant update', async () => {
+  const f = fixture(); const key = f.insert(); const content = videoDoc();
+  const expected = { action: 'update', contentReferenceKey: key, contentDocument: content };
+  f.state.docs.get(key).contentDocument = withReadbackNulls(content);
+  const original = JSON.stringify(expected), raw = JSON.stringify(f.state.docs.get(key).contentDocument);
+  const result = await f.ops[1].readback(store, { marketplace: 'US' }, expected, {});
+  assert.equal(result.match, true);
+  assert.equal(result.status, 'CONTENT_UPDATED');
+  assert.equal(JSON.stringify(result.actual.contentDocument), raw);
+  assert.equal(JSON.stringify(expected), original);
+  assert.equal(aplusDocumentsMatch(content, withReadbackNulls(content)), true, 'equivalence is symmetric');
+  await assert.rejects(prepare(f.ops[1], { action: 'update', contentReferenceKey: key, contentDocument: content }), /与现有文档一致/);
+  assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
+});
+
+test('A+ semantic comparison retains media, text, crop, array ordering, required and unknown differences', () => {
+  const expected = videoDoc();
+  const changes = [
+    (d) => { d.name += ' changed'; },
+    (d) => { d.locale = 'en-GB'; },
+    (d) => { d.contentModuleList.reverse(); },
+    (d) => { d.contentModuleList.push(clone(d.contentModuleList[1])); },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.heroVideo.videoMediaId = 'OTHER'; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.heroVideo.imageMediaId = 'OTHER'; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.heroVideo.imageCropSpecification = crop(); },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage.uploadDestinationId = 'OTHER'; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage.altText += ' changed'; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage.imageCropSpecification.size.width.value = 1; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage.imageCropSpecification = null; },
+    (d) => { d.contentModuleList[1].premiumFullBackgroundImage.desktopImage.imageCropSpecification.offset = { x: { value: 0, units: 'pixels' }, y: { value: 0, units: 'pixels' } }; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.footer = []; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.headline = ''; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.headline = false; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.headline = 0; },
+    (d) => { d.contentModuleList[0].premiumHeroVideo.unknown = null; },
+    (d) => { d.unknown = null; },
+    (d) => { d.contentModuleList[1] = null; },
+  ];
+  for (const change of changes) {
+    const actual = withReadbackNulls(expected); change(actual);
+    assert.equal(aplusDocumentsMatch(actual, expected), false, change.toString());
+  }
+  const requiredMissing = videoDoc(); delete requiredMissing.contentModuleList[1].premiumFullBackgroundImage.mobileImage;
+  const requiredNull = clone(requiredMissing); requiredNull.contentModuleList[1].premiumFullBackgroundImage.mobileImage = null;
+  assert.equal(aplusDocumentsMatch(requiredMissing, requiredNull), false, 'required null and missing are never normalized');
+  const unknownA = { ...expected, unknown: {} }, unknownB = { ...expected, unknown: { footer: null } };
+  assert.equal(aplusDocumentsMatch(unknownA, unknownB), false, 'unknown subtrees stay exact');
+});
+
+test('A+ null-tolerant content comparison never ignores an ASIN association or review status mismatch', async () => {
+  const f = fixture(); const key = f.insert();
+  const expected = { action: 'submit', contentReferenceKey: key, contentDocument: videoDoc(), asinSet: ['B000000001'] };
+  const current = f.state.docs.get(key); current.contentDocument = withReadbackNulls(expected.contentDocument);
+  current.contentMetadata.status = 'DRAFT';
+  let result = await f.ops[1].readback(store, {}, expected, {});
+  assert.equal(result.match, false);
+  f.state.clock += 3600_001;
+  current.contentMetadata.status = 'APPROVED'; current.asins = ['B000000002'];
+  result = await f.ops[1].readback(store, {}, expected, {});
+  assert.equal(result.match, false);
+  f.state.clock += 3600_001;
+  current.asins = expected.asinSet;
+  result = await f.ops[1].readback(store, {}, expected, {});
+  assert.equal(result.match, true);
+  assert.equal(result.status, 'APPROVED');
+  assert.match(result.note, /不等于.*页面显示/);
+  assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
 });
