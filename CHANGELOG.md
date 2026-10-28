@@ -1,5 +1,12 @@
 # 更新记录
 
+## 2.4.1（2026-10-28）广告 v1 报表预设字段修复
+
+- 修复 v1 报表申请被亚马逊拒绝（400006）：`fields` 里带了 `advertiserAccount.entityId` 就必须同时带 `advertiserAccount.id`。三个预设（`campaigns`、`ad_groups`、`campaigns_summary`）已补齐；自定义 `fields` 只写 entityId 时也会自动补上，不再需要调用方自己记住这条约束。
+- 修复 `campaigns_summary` 缺时间维度导致的 400016：亚马逊要求 `fields` 恰好包含一个 `date.*` 维度，该预设已加入 `date.value`。**语义变化**：它现在返回按天的行，期间汇总需要调用方自行聚合。
+- 新增回归测试，锁定「entityId 与 advertiserAccount.id 成对出现」和「每个预设恰好一个时间维度」两条约束。
+- 验证：真实 Ads API 上 `campaigns` 与 `campaigns_summary` 均成功申请报表；全量 348 项测试通过。
+
 ## 2.4.0 — 美国站 FBA 入仓流程
 
 - 新增 FBA 专用只读工具：计划、商品、装箱/分仓/运输方案、货件、箱子/托盘、窗口及异步操作；核对站点、归属与完整分页。

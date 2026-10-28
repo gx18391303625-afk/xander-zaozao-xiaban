@@ -270,6 +270,24 @@ test('v1 报表：自动找广告主账户 → 申请 → 下载', async () => {
   assert.equal(loadConfig().stores.main.ads.accounts.US.advertiserAccountId, 'amzn1.ads-account.g.TEST', '账户 ID 已缓存');
 });
 
+test('v1 报表预设：entityId 必须带 advertiserAccount.id，且恰好一个时间维度', async () => {
+  const { requestAdsReport, V1_PRESETS } = await import('../lib/ads.js');
+  for (const [name, fields] of Object.entries(V1_PRESETS)) {
+    assert.ok(fields.includes('advertiserAccount.id'), `${name} 缺少 advertiserAccount.id（Amazon 400006）`);
+    assert.ok(fields.includes('advertiserAccount.entityId'), `${name} 缺少 advertiserAccount.entityId`);
+    assert.equal(fields.filter((f) => /^date\./.test(f)).length, 1, `${name} 必须恰好一个时间维度（Amazon 400016）`);
+  }
+  // 自定义 fields 只写了 entityId 时，也要自动补上 advertiserAccount.id
+  const r = await requestAdsReport('main', {
+    fields: ['advertiserAccount.entityId', 'date.value', 'metric.clicks'],
+    startDate: '2026-10-01', endDate: '2026-10-07',
+  });
+  assert.equal(r.api, 'v1');
+  const creates = mock.state.calls.filter((c) => c.path === '/adsApi/v1/create/reports');
+  const last = creates[creates.length - 1];
+  assert.ok(last.body.reports[0].query.fields.includes('advertiserAccount.id'), '自定义 fields 未补齐 advertiserAccount.id');
+});
+
 test('搜索词报表：v1 字段未公开，暂自动用 v3 并提示关停日期', async () => {
   const { requestAdsReport, collectAdsReport } = await import('../lib/ads.js');
   const r = await requestAdsReport('main', { preset: 'sp_search_terms', startDate: '2026-10-14', endDate: '2026-10-20' });

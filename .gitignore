@@ -9,3 +9,5 @@ secrets*.json
 *.db-wal
 *.db-shm
 .env
+# 电脑操控（浏览后台时落下的截图与观察记录）
+.dsh-computer-use/
