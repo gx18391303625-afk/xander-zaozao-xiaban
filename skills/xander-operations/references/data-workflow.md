@@ -35,7 +35,9 @@
 - **广告管理用 Amazon Ads API v1 统一接口**（SP、SB；官方正式版）。对象：`sp.campaigns / sp.adGroups / sp.ads / sp.targets / sb.campaigns / sb.adGroups / sb.ads / sb.targets`，快捷方式 `sp.keywords`（关键词投放）、`sp.negativeKeywords`（否定关键词）。v1 里关键词、商品、类目、自动投放、否定词都是 “target”，用 targetType 和 negative 区分；关键词文字在 `targetDetails.keywordTarget.keyword`，投放竞价在 `bid.bid`，广告组默认竞价在 `bid.defaultBid`，活动日预算在 `budgets[0].budgetValue.monetaryBudgetValue.monetaryBudget.value`。
 - **SD 展示型**：官方还没发布 SD 的统一接口迁移资料，暂用原接口 `sd.campaigns / sd.targets`。
 - SP/SB/SD 分开取、分开统计；一个 profile 只代表一个站点。
-- **报表用 Reporting API v1**（官方仍标为测试版）：preset `campaigns`（按天、按活动）、`ad_groups`（按天、按广告组）、`campaigns_summary`（期间汇总），或自己传 `fields`（如 `campaign.id`、`adGroup.id`、`date.value`、`adProduct.value`、`budgetCurrency.value`、`metric.impressions/clicks/totalCost/purchases/sales/unitsSold`）。v1 报表一次覆盖 SP/SB/SD，用 `adProduct.value` 区分；如果提示是“全球广告账户”，结果可能含多个站点，按币种区分，不同币种不要相加。
+- **报表用 Reporting API v1**（官方仍标为测试版）：preset `campaigns`（按天、按活动）、`ad_groups`（按天、按广告组）、`campaigns_summary`（按天、按活动，另含新客购买/销售及详情页浏览指标；期间总计由调用方聚合），或自己传 `fields`（如 `campaign.id`、`adGroup.id`、`date.value`、`adProduct.value`、`budgetCurrency.value`、`metric.impressions/clicks/totalCost/purchases/sales/unitsSold`）。v1 报表一次覆盖 SP/SB/SD，用 `adProduct.value` 区分；如果提示是“全球广告账户”，结果可能含多个站点，按 `advertiserAccount.entityId` 对应的站点拆分；同币种也不能代替站点判断。
+- **期间汇总**：上述预设都返回日维度行，下载工具不会自动把 `campaigns_summary` 合成期间总计。先确认报表完成、日期覆盖及数据口径一致；同一日期的重叠报表/快照不要重复计入。按账户/站点（`advertiserAccount.id/entityId`）、广告产品（`adProduct.value`）、活动（`campaign.id`）和币种（`budgetCurrency.value`）分组，再累加所需的曝光、点击、花费、购买、销售额、售出件数等指标。SP/SB/SD、不同站点、币种、接口版本或归因窗口分开统计；缺失和生成中的数据不能当 0。
+- **期间比率**：用汇总后的分子和分母重算 CTR、CPC、ACOS、ROAS 等，不相加或简单平均每日比率；分母为 0 或缺失时标为不可计算。CVR 还须先确认购买和点击的归因口径兼容。新客购买与详情页浏览指标不能当作去重人数。
 - **搜索词、投放、推广商品报表**：v1 的字段名官方还没公开，preset `sp_search_terms / sp_targeting / sp_advertised_product` 会自动用 v3 报表并注明（v3 报表 2027-06-30 关停，届时插件会更新）。SD 没有搜索词报表，不要填 0。v3 的 SP 默认 7 天归因（purchases7d/sales7d）；v1 的 metric.purchases/sales 口径以官方说明为准，两者不要直接相加或对比。
 - 最近 1–3 天的广告数据还在回填，不能当最终值。
 - 字段被亚马逊拒绝（400）时，把错误原文告诉用户，按提示改 fields 重试一次；不要换成别的数据源硬凑。
