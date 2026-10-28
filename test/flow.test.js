@@ -288,6 +288,24 @@ test('v1 报表预设：entityId 必须带 advertiserAccount.id，且恰好一�
   assert.ok(last.body.reports[0].query.fields.includes('advertiserAccount.id'), '自定义 fields 未补齐 advertiserAccount.id');
 });
 
+test('v1 报表缓存键带上预设字段：预设改了不会复用旧报表', async () => {
+  const { requestAdsReport, V1_PRESETS } = await import('../lib/ads.js');
+  const params = { preset: 'ad_groups', startDate: '2026-11-02', endDate: '2026-11-08' };
+  const first = await requestAdsReport('main', params);
+  assert.equal(first.reused, false);
+  const again = await requestAdsReport('main', params);
+  assert.equal(again.reused, true, '同参数 12 小时内复用');
+  const backup = [...V1_PRESETS.ad_groups];
+  try {
+    V1_PRESETS.ad_groups.push('metric.unitsSold');
+    const afterChange = await requestAdsReport('main', params);
+    assert.equal(afterChange.reused, false, '预设字段变了必须重新申请，不能复用旧口径');
+  } finally {
+    V1_PRESETS.ad_groups.length = 0;
+    V1_PRESETS.ad_groups.push(...backup);
+  }
+});
+
 test('搜索词报表：v1 字段未公开，暂自动用 v3 并提示关停日期', async () => {
   const { requestAdsReport, collectAdsReport } = await import('../lib/ads.js');
   const r = await requestAdsReport('main', { preset: 'sp_search_terms', startDate: '2026-10-14', endDate: '2026-10-20' });
