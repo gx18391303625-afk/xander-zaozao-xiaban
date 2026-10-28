@@ -79,13 +79,15 @@ xander panel
 | A+ | 内容创建/编辑、完整 ASIN 集关联、校验和提交审核，审核与发布分开核验 |
 | 优惠券/促销 | 本地准备与校验、网页交接、官方只读状态查询；暂无官方写接口 |
 | 紫鸟浏览器 | 代为点击/填写（单独开关，不跟随一键全开） |
-| 规划中 | FBA 货件 |
+| FBA 物流（Beta） | 美国站先装箱入仓：计划、装箱、分仓、运输报价/确认、到仓窗口、跟踪号、箱唛/提单（单独开关，不跟随一键全开） |
 
 六项新增能力的范围、输入示例、资格和状态含义见 [2.3 功能使用说明](docs/v2.3-features.md)。所有新增开关默认关闭；升级不会改动店铺设置、密钥或档案库。
 
 美国 SP 活动名称可通过独立的“修改广告活动名称”开关修改；只提交名称字段，保留暂停状态、预算及竞价。参数和审批流程见 [活动改名](docs/ads-campaign-name.md)。
 
 Item Highlights 使用 Amazon 属性 `title_differentiation`，可独立读取，并按目标站点、商品类型和语言准备改动；真实 PTD 与 `VALIDATION_PREVIEW` 通过后仍须批准，演练不正式提交。字段映射与完整流程见 [Listing 文案属性](docs/listing-attributes.md)。
+
+FBA 的接入权限、每一步审批、费用确认和所需资料见 [FBA 入仓流程](docs/fba-inbound.md)。创建入仓计划不等于货已发出；合作承运报价确认可能产生费用。
 
 归档、删除这类不可恢复的操作故意不提供。
 
@@ -100,7 +102,7 @@ Item Highlights 使用 Amazon 属性 `title_differentiation`，可独立读取�
 | 广告报表 | **Reporting API v1**（`/adsApi/v1/create\|retrieve/reports`） | 官方仍为测试版；搜索词、投放、推广商品三类报表的 v1 字段未公开，暂自动用 v3（2027-06-30 关停），并在结果里注明 |
 | 订单 | Orders **v2026-01-01** | v0 已弃用（2027-03-27 下线），插件拒绝调用 |
 | 财务 | Finances **v2024-06-19** | v0 已弃用（2027-08-27 下线），插件拒绝调用 |
-| FBA 入库 | Fulfillment Inbound **v2024-03-20** | v0 已下线 |
+| FBA 入库 | Fulfillment Inbound **v2024-03-20** | 主要流程用新版；箱唛/提单仍使用有效的 v0 专用端点，须审批 |
 | Listing / 目录 / 报表 / 库存 | Listings 2021-08-01、Catalog 2022-04-01、Reports 2021-06-30、FBA Inventory v1 | 均为当前最新版 |
 
 已弃用的旧接口和报表类型（如旧版结算报表 `GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE`）插件会直接拒绝，并告诉 AI 应该改用哪个新接口。

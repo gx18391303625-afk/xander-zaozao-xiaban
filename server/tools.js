@@ -8,6 +8,7 @@ import { loadConfig, getStore } from '../lib/config.js';
 import { p, homeDir, ensureHome } from '../lib/paths.js';
 import { backendLabel, getSecret } from '../lib/secrets.js';
 import { spapi, getListing, requestReport, collectReport } from '../lib/spapi.js';
+import { createFbaReader, FBA_READ_RESOURCES } from '../lib/fba-inbound-api.js';
 import { listProfiles, listEntities, requestAdsReport, collectAdsReport, ENTITIES, V1_PRESETS, V3_PRESETS, V3_REPORT_SUNSET } from '../lib/ads.js';
 import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
@@ -87,6 +88,31 @@ export function buildTools(version) {
     },
 
     // ---------------- 卖家接口（只读） ----------------
+    {
+      name: 'xander_fba_inbound',
+      description: '专用只读查询 FBA 入库计划、商品、箱子、装箱/分仓/运输选项、货件、托盘、送达时段和异步操作状态（Fulfillment Inbound v2024-03-20，需 Amazon Fulfillment 角色）。按店铺区域和所选站点校验计划、货件归属；自动分页，complete=false 不能作为完整范围用于写入审批。选项须已生成，此工具不会替你生成或确认。标签和提单通过 fba.inbound 的 generateLabels/billOfLading 审批操作取得：标签文档生成不证明 READY_TO_SHIP 或实际发运。',
+      inputSchema: S({
+        store, resource: { type: 'string', enum: FBA_READ_RESOURCES }, marketplace: mkt,
+        inboundPlanId: str('除 plans/operation 外必填；官方 38 字符计划 ID'),
+        shipmentId: str('shipment/shipmentItems/shipmentBoxes/deliveryWindowOptions 必填；transportationOptions 可选'),
+        packingGroupId: str('packingGroupItems/packingGroupBoxes 必填'),
+        operationId: str('operation 必填；36–38 字符异步 operationId'),
+        filters: S({
+          pageSize: { type: 'integer', minimum: 1, maximum: 1000, description: '默认10；plans最大30；packing/placement/transport最大20；packingGroup和deliveryWindow最大100；其余列表最大1000' },
+          paginationToken: { type: 'string', minLength: 1, maxLength: 1024, description: '上次返回的 nextPaginationToken；从中途开始的结果不标记为完整快照' },
+          status: { type: 'string', enum: ['ACTIVE', 'VOIDED', 'SHIPPED'], description: '仅plans' },
+          sortBy: { type: 'string', enum: ['LAST_UPDATED_TIME', 'CREATION_TIME'], description: '仅plans' },
+          sortOrder: { type: 'string', enum: ['ASC', 'DESC'], description: '仅plans' },
+          placementOptionId: str('仅transportationOptions；须属于所选计划'),
+          shipmentId: str('仅transportationOptions；须属于所选计划，不能与顶层shipmentId冲突'),
+        }),
+        maxPages: { type: 'integer', minimum: 1, maximum: 100, description: '自动读取页数上限，默认20；达到上限仍有令牌时返回complete=false' },
+      }, ['resource']),
+      annotations: READ,
+      async handler({ store: alias, ...args }) {
+        return out(await createFbaReader().read(getStore(alias), args), 'fba-inbound');
+      },
+    },
     {
       name: 'xander_spapi_get',
       description: '只读调用亚马逊卖家接口（SP-API）的 GET 路径（只用最新版本）：库存 /fba/inventory/v1/summaries、订单 /orders/2026-01-01/orders、财务 /finances/2024-06-19/transactions、目录 /catalog/2022-04-01/items/{asin}、入库 /inbound/fba/2024-03-20/inboundPlans、站点 /sellers/v1/marketplaceParticipations。已弃用的旧版本（orders/v0、finances/v0 等）会被拒绝并提示新路径。站点参数会自动补上。分页按返回的 nextToken / paginationToken 继续调用。',
@@ -399,4 +425,5 @@ export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊
 - 新建活动、广告组和广告商品默认暂停；新增关键词的启用状态按精确提案核对。多步创建可能部分成功。未知结果只核验，不能换提案重提。
 - 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。
 - 优惠券只有准备、网页交接与官方只读查询。HANDOFF_READY不代表已提交。宿主电脑操控仅在有工具且用户允许前台操作时使用，不强依赖紫鸟。
+- FBA 用 xander_fba_inbound 读取；fba.inbound 只支持美国站先装箱流程。每份提案一个动作，异步成功后独立回读再进入下一步。分仓费、运输报价及合作承运扣款须单独明确批准；箱唛/提单也走审批，生成标签不代表实际发运。
 - 未知数据保持未知，不当 0；模拟结果标注 SIMULATED。`;

@@ -1,6 +1,6 @@
 {
   "name": "xander-zaozao-xiaban",
-  "version": "2.3.9",
+  "version": "2.4.0",
   "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件。竞品、关键词、Listing、广告、补货、利润六大模块；店铺/广告/卖家精灵/紫鸟按向导自己接入，令牌只存本机；所有写入按开关授权、逐项批准、执行后回读。",
   "author": {
     "name": "Xander"

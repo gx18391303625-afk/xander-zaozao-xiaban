@@ -168,8 +168,8 @@ test('一个提案里有一项不合格，整个提案不生成', async () => {
   assert.equal(pr.passed, 1);
 });
 
-test('不认识的操作和规划中的功能不能用', async () => {
-  const pr = await prepareChange({ store: 'main', changes: [{ op: 'fba.inbound' }] });
+test('不认识的操作不能用', async () => {
+  const pr = await prepareChange({ store: 'main', changes: [{ op: 'unknown.operation' }] });
   assert.equal(pr.ok, false);
 });
 
@@ -194,10 +194,11 @@ test('演练模式：只记录不提交', async () => {
   updateConfig((c) => { c.settings.dryRun = false; });
 });
 
-test('一键全开不含紫鸟；一键全关全部关闭', () => {
+test('一键全开不含 FBA 和紫鸟；一键全关全部关闭', () => {
   setAll(true);
   assert.equal(isOn('ads.sp.campaign.state'), true);
   assert.equal(isOn('ziniao.control'), false);
+  assert.equal(isOn('fba.inbound'), false);
   setAll(false);
   assert.equal(isOn('ads.sp.target.bid'), false);
 });

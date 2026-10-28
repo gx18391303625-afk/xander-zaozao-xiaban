@@ -13,7 +13,7 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 | 建词库、刷新词库、核验关键词排名 | `build-amazon-keyword-library` |
 | 写/改/审 Listing、后台搜索词 | `write-amazon-listing` |
 | 广告经济线、广告诊断、广告方案 | `build-amazon-advertising-strategy` |
-| 库存续航、补货数量、整箱分配 | `plan-amazon-replenishment` |
+| 库存续航、补货数量、整箱分配、FBA 入仓计划和货件 | `plan-amazon-replenishment` |
 | 利润估算、期间复盘、结算对账 | `reconcile-amazon-profit` |
 
 涉及季节变化、剩余销售窗口，或广告、价格促销、库存现金需要共同取舍时，按需加载 [季节与跨模块决策复盘](references/seasonal-decision-review.md)。它衔接已有证据和门禁；单指标计算、单字段修改等窄任务不要求补齐整张复盘卡。
@@ -43,8 +43,9 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 3. 相关开关没开：告诉用户在终端运行 `xander panel` 自己打开。**你不能替用户开开关，不能改开关文件，不能运行 `xander switch on`。**
 4. `xander_execute_change`（只执行一次）→ 看回读结果。`OUTCOME_UNKNOWN` 绝不重发，只能 `xander_verify_change` 查清楚。
 5. 新建广告、广告位加价、预算规则/投资组合、图片、A+、优惠券按 [2.3 功能使用说明](../../docs/v2.3-features.md) 的真实范围执行。先用 `xander_switches` 查看参数和能力限制。
-6. 官方接口做不到时，可交接给用户手动操作或宿主提供的 GPT 电脑/浏览器操控；不得假设宿主有工具，不强依赖紫鸟。前台操作需先与用户协调。紫鸟仅作为可选路径，见 [ziniao-fallback.md](references/ziniao-fallback.md)。
-7. 优惠券的 `HANDOFF_READY` 只表示准备就绪，未提交；A+ 草稿、ASIN 关联、已提交审核、审核通过和当前版本发布是不同结果。创建超时、部分成功或进程中断只核验，不自动续跑或换提案重提。
+6. FBA 入仓按 [FBA 入仓流程](../../docs/fba-inbound.md) 执行：`xander_fba_inbound` 只查，`fba.inbound` 每份提案一个动作。当前仅支持美国站先装箱；分仓、合作承运费用和箱唛生成分别批准。异步回执不等于完成，核验成功后才能准备下一步。
+7. 官方接口做不到时，可交接给用户手动操作或宿主提供的 GPT 电脑/浏览器操控；不得假设宿主有工具，不强依赖紫鸟。前台操作需先与用户协调。紫鸟仅作为可选路径，见 [ziniao-fallback.md](references/ziniao-fallback.md)。
+8. 优惠券的 `HANDOFF_READY` 只表示准备就绪，未提交；A+ 草稿、ASIN 关联、已提交审核、审核通过和当前版本发布是不同结果。创建超时、部分成功或进程中断只核验，不自动续跑或换提案重提。
 
 ## 收尾
 

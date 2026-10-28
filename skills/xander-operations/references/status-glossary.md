@@ -71,3 +71,5 @@
 | `HOLD_CLAIM` / `UNSUPPORTED` | 对应卖点没证据，不放 |
 | `BRAND_IP_ISOLATED` | 别人的品牌词，不放 |
 | `WRONG_INTENT` | 搜的人要的不是我们这种东西，不放 |
+
+- `DOCUMENT_NOT_SAVED`：平台已返回文档生成响应，但本机没有保存可用 PDF；没有自动重发，重新获取需要另一份明确批准。

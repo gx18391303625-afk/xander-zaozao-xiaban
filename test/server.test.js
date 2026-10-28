@@ -81,10 +81,13 @@ test('开关面板：没口令、外部 Host 都被拒；有口令可以拨开�
     assert.ok(st.switches.items.length > 10);
     const after = JSON.parse((await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'ads.sp.target.bid', on: true } })).body);
     assert.equal(after.switches.items.find((x) => x.id === 'ads.sp.target.bid').on, true);
-    const bad = await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'fba.inbound', on: true } });
-    assert.equal(bad.status, 400, '规划中的功能不能打开');
+    const bad = await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'unknown.operation', on: true } });
+    assert.equal(bad.status, 400, '未知功能不能打开');
     const all = JSON.parse((await req(port, { method: 'POST', pathName: '/api/all', headers: h, body: { on: true } })).body);
     assert.equal(all.switches.items.find((x) => x.id === 'ziniao.control').on, false, '一键全开不含紫鸟');
+    assert.equal(all.switches.items.find((x) => x.id === 'fba.inbound').on, false, '一键全开不含 FBA');
+    const fba = JSON.parse((await req(port, { method: 'POST', pathName: '/api/switch', headers: h, body: { id: 'fba.inbound', on: true } })).body);
+    assert.equal(fba.switches.items.find((x) => x.id === 'fba.inbound').on, true, 'FBA 可由用户单独打开');
   } finally {
     server.close();
   }

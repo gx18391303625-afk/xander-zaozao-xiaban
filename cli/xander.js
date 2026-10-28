@@ -141,7 +141,7 @@ async function switchCmd() {
   if (sub === 'on') { const id = args[1]; if (!id) throw new Error('用法：xander switch on <开关ID>'); await needHuman(`打开 ${id}`); setSwitch(id, true, 'cli'); console.log(c.green(`已打开 ${id}`)); return; }
   if (sub === 'off') { const id = args[1]; if (!id) throw new Error('用法：xander switch off <开关ID>'); setSwitch(id, false, 'cli'); console.log(`已关闭 ${id}`); return; }
   if (sub === 'all-off') { setAll(false, { by: 'cli' }); console.log('已全部关闭'); return; }
-  if (sub === 'all-on') { await needHuman('打开全部官方写入开关（不含紫鸟）'); setAll(true, { by: 'cli', includeSpecial: args.includes('--with-ziniao') }); console.log(c.green('已全部打开')); return; }
+  if (sub === 'all-on') { await needHuman(args.includes('--with-ziniao') ? '打开常规写入开关及紫鸟（不含 FBA 物流和网页交接）' : '打开常规写入开关（不含 FBA 物流、紫鸟和网页交接）'); setAll(true, { by: 'cli' }); if (args.includes('--with-ziniao')) setSwitch('ziniao.control', true, 'cli'); console.log(c.green('已全部打开')); return; }
   throw new Error(`不认识的子命令：${sub}`);
 }
 

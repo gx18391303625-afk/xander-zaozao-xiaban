@@ -23,7 +23,7 @@
 - 订单：`/orders/2026-01-01/orders`（searchOrders：createdAfter 或 lastUpdatedAfter、fulfillmentStatuses、maxResultsPerPage、paginationToken；includedData 按需选 PROCEEDS/EXPENSE/FULFILLMENT/PROMOTION 等，BUYER/RECIPIENT 属受限个人信息，非必要不取）；单个订单 `/orders/2026-01-01/orders/{orderId}`。Orders v0 已弃用（2027-03-27 下线），插件会拒绝调用。
 - 商品目录：`/catalog/2022-04-01/items/{asin}`（includedData=summaries,attributes,salesRanks）。
 - 财务：`/finances/2024-06-19/transactions`（postedAfter/postedBefore 必须是有限期间，marketplaceId，transactionStatus）；余额 `/finances/2024-06-19/balances`、汇总 `/finances/2024-06-19/summary`。Finances v0 已弃用（2027-08-27 下线），插件会拒绝调用。
-- FBA 入库：`/inbound/fba/2024-03-20/inboundPlans` 及其下的货件；Inbound v0 已下线。
+- FBA 入库：优先 `xander_fba_inbound`，按 resource 查计划、装箱/分仓/运输方案、货件、箱内商品和异步 operation；`complete=false` 不能当全量。区域计划列表按明确的 marketplaceIds 过滤到所选站点，原始页保留区域范围。箱唛/提单虽使用保留的 v0 GET，仍走 `fba.inbound` 审批，不能通用 GET 绕过。流程见 [FBA 入仓](../../../docs/fba-inbound.md)。
 - 销售与流量：报表 `GET_SALES_AND_TRAFFIC_REPORT`（reportOptions: dateGranularity=DAY, asinGranularity=CHILD）。
 - 搜索查询表现（品牌卖家）：`GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT`（reportOptions: reportPeriod=WEEK/MONTH/QUARTER, asin=空格分隔），必须是完整的自然周/月。
 - 库存明细报表：`GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA`；全部 Listing：`GET_MERCHANT_LISTINGS_ALL_DATA`。

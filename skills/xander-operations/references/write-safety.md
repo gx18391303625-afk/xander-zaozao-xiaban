@@ -18,7 +18,9 @@
 - Listing：标题/Item Highlights 亮点/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。亮点对应 `title_differentiation`，标题对应 `item_name`；使用真实商品类型定义和 Amazon 预校验确认字段支持，不能互相替代。
 - 紫鸟浏览器代操作（`ziniao.control`，单独开关）。
 
-每项改动只改一个字段。归档、删除不提供（不可逆）。规划中的能力（新建活动、广告位、A+、优惠券、FBA 货件等）暂不能执行，可以给用户出手动操作清单，或在用户同意下走紫鸟兜底。
+- FBA 入仓（`fba.inbound`，独立开关）：美国站计划、装箱/分仓、运输、窗口、跟踪与标签/提单，每份提案仅一个动作；具体边界见 [FBA 入仓](../../../docs/fba-inbound.md)。
+
+修改字段只提交获批范围；创建或流程动作按对应接口的完整精确请求审批。归档、删除不提供。新建广告、广告位、预算、图片、A+ 和优惠券按 [实际能力](../../../docs/v2.3-features.md) 执行；优惠券仍为网页交接，不能假称接口写入。
 
 ## 提案怎么写
 
@@ -41,12 +43,15 @@
 
 | 状态 | 意思 | 你该怎么做 |
 |---|---|---|
-| API_STATE_VERIFIED | 接口回读已是新值 | 告诉用户已生效（买家页面可能稍后显示） |
+| API_STATE_VERIFIED | 本次动作的接口状态已匹配 | 报告准确范围；FBA 不等于已发运、接收或可售，内容不等于买家页已显示 |
+| SUBMITTED | 异步动作已受理、尚未完成 | 只核验原 operation，不重新提交 |
+| PARTIALLY_SUCCEEDED | 已有部分结果或仍需核查影响范围 | 保留回执和防重锁，人工核对，不自动续跑 |
 | AWAITING_READBACK | 已提交，回读还没变（Listing 常见） | 过一段时间 `xander_verify_change` |
 | MISMATCH | 回读值与批准值不同 | 如实报告，别自行再改 |
 | FAILED | 亚马逊明确拒绝 | 报告原因，修正后重新出提案 |
 | OUTCOME_UNKNOWN | 超时/断网，不知道是否生效 | **绝不重发**，用 `xander_verify_change` 查清 |
 | SKIPPED_STALE | 执行前发现原值已被改 | 重新读取、重新出提案 |
+| DOCUMENT_NOT_SAVED | 文档生成响应已取得，本机没有可用 PDF | 不重发；重新获取需另行审批 |
 | DRY_RUN | 演练模式 | 告诉用户这只是演练 |
 
 “API 已生效”不等于买家页面已显示，也不等于效果已出现。效果复盘要等足够的数据窗口（广告一般 7–14 天）。

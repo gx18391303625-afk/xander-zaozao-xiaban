@@ -164,7 +164,7 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
 <dialog id="dlg">
   <form method="dialog">
     <h2 style="margin-top:0">一键全开？</h2>
-    <p>这会打开所有已实现的官方 API 写入开关（不包括紫鸟和网页交接）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
+    <p>这会打开所有已实现的官方 API 写入开关（不包括 FBA 物流、紫鸟和网页交接）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
     <label class="check"><input type="checkbox" id="understand"> 我明白：每次执行前我都会认真看提案里的新旧值。</label>
     <div class="actions">
       <button value="cancel">取消</button>
@@ -208,10 +208,10 @@ function rowHtml(it) {
 function render() {
   $('version').textContent = `v${S.version}`;
   const items = S.switches.items;
-  const normal = items.filter((x) => !x.special);
+  const normal = items.filter((x) => x.id !== 'ziniao.control');
   const groups = [...new Set(normal.map((x) => x.group))];
   $('groups').innerHTML = groups.map((g) => `<div class="group"><p class="group-title">${esc(g)}</p>${normal.filter((x) => x.group === g).map(rowHtml).join('')}</div>`).join('');
-  const z = items.find((x) => x.special);
+  const z = items.find((x) => x.id === 'ziniao.control');
   $('ziniaoBox').innerHTML = rowHtml(z) + (S.ziniaoConfigured ? '' : '<p class="hint" style="margin:6px 0 0">还没配置紫鸟：在终端运行 <code>xander setup</code> → 紫鸟浏览器。</p>');
   $('onCount').innerHTML = `已开 <b>${items.filter((x) => x.on).length}</b> 项`;
   $('mode').innerHTML = `审批：<b>${S.settings.approvalMode === 'panel' ? '面板' : '对话'}</b>${S.settings.dryRun ? ' · <b>演练中</b>' : ''}`;
@@ -247,7 +247,7 @@ document.addEventListener('click', (e) => {
 });
 $('allOff').onclick = () => act('/api/all', { on: false }, '已全部关闭');
 $('allOn').onclick = () => { $('understand').checked = false; $('dlgOk').disabled = true; $('dlg').showModal(); };
-$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（紫鸟与网页交接除外）'); });
+$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（FBA 物流、紫鸟与网页交接除外）'); });
 $('saveLimits').onclick = () => act('/api/limits', Object.fromEntries(['bidChangePctMax', 'budgetChangePctMax', 'priceChangePctMax', 'maxChangesPerProposal'].map((k) => [k, Number($(k).value)])), '上限已保存');
 
 if (!token) showErr('缺少口令：请用终端里 `xander panel` 打印的完整网址打开。');
