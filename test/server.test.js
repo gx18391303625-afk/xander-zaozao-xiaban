@@ -46,6 +46,12 @@ test('MCP：握手、列工具、调用；stdout 只有协议内容', async () =
   }
   const names = byId[2].result.tools.map((t) => t.name);
   assert.ok(names.includes('xander_prepare_change'));
+  for (const name of ['xander_diagnose_asin', 'xander_save_diagnostic', 'xander_diagnostics', 'xander_experiment_create', 'xander_experiment_review', 'xander_experiments']) {
+    const tool = byId[2].result.tools.find(t => t.name === name);
+    assert.ok(tool, `${name} 必须通过真实MCP协议注册`);
+    assert.equal(tool.annotations.openWorldHint, false, '诊断账本只操作本机');
+    assert.equal(tool.inputSchema.additionalProperties, false);
+  }
   assert.ok(!names.some((n) => /switch_(on|set)|set_switch|toggle/.test(n)), '不能有拨开关的工具');
   const sw = JSON.parse(byId[3].result.content[0].text);
   assert.ok(sw.items.every((x) => x.on === false), '默认全关');

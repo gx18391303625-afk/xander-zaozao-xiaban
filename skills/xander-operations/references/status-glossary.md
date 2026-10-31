@@ -25,6 +25,22 @@
 | `RUN_BLOCKED` | 连原始数据都拿不到，这次没法做 |
 | `SIMULATED / NOT LIVE` | 模拟数字，不是线上真实结果 |
 
+## 本地诊断与实验账本（2.5）
+
+| 状态 | 白话 |
+|---|---|
+| `review_ready` | 仅按所供证据可进入人工复核，不是批准、已执行或独立验证 |
+| `blocked` / `insufficient_evidence` | 本次证据门禁未齐，先补证，不强行凑动作 |
+| `hard_stop_review` | 优先人工核对硬止损风险；尚未执行止损，暂不扩量 |
+| `hold` | 明确暂不动作，不代表已执行暂停 |
+| `satisfied` / `unmet` / `unknown` / `not_applicable` | 按输入声明满足 / 未满足 / 未知 / 有理由的不适用；硬门禁不能靠不适用跳过 |
+| `LOCAL_PLAN` | 只有本地实验计划，未执行、未授权，也没有自动监控 |
+| `EARLY_OBSERVATION` | 观察窗口未满，仅记早期现象，不作成功结论 |
+| `DESCRIPTIVE_ONLY` | 描述式复盘，不代表已验证因果或增量收益 |
+| `REPORTED_UNVERIFIED` | 调用方记录的平台回读声明，账本未独立核验 |
+| `unverified_reference` | 仅记录提案ID引用，未核实存在性、范围或执行结果 |
+| `UNKNOWN`（因果） | 因果未知，不把前后变化归功于本次动作 |
+
 ## 计算器
 
 | 状态 | 跟用户这样说 |

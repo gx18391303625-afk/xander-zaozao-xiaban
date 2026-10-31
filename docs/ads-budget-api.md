@@ -23,6 +23,8 @@
 
 统一接口的 `campaigns`、`adGroups`、`ads` 查询按广告类型限制 `maxResults`：SP 最大 1000，SB 最大 100。组合范围查询分别使用对应页长；普通列表原有的 100 条默认页长保留，小于上限的指定页长也保留。共享参数构造同时处理显式参数和 `filters.maxResults`，多广告类型查询取较小上限。以上采用固定版本的 [SP OpenAPI](https://github.com/amzn/ads-advanced-tools-docs/blob/e25aace0ec07997c113dac48f333298472243558/unified-campaign-management-migration-skills/api-specs/unified-api-sp.json) 与 [SB OpenAPI](https://github.com/amzn/ads-advanced-tools-docs/blob/e25aace0ec07997c113dac48f333298472243558/unified-campaign-management-migration-skills/api-specs/unified-api-sb.json)。SD 仍用 `count:100` 与递增 `startIndex`。
 
+2.5发布前另核对同一固定版本合约的 `SPQueryTargetRequest` / `SBQueryTargetRequest`：SP `targets` 单页最大1000，SB `targets` 单页最大5000，不能把SB活动查询的100上限套给所有资源。SP投放、关键词与否定关键词列表明确使用1000，避免旧5000参数导致SP请求被拒。新增合成接口回归分别覆盖两类合约，不用真实店铺试错。
+
 SP/SB 必须继续读取到 `nextToken` 消失，不能按本页条数提前结束；SD 读取至返回不足 100 条。任何后续页异常都会阻止组合编辑。每页数量是 Amazon 查询参数，与用户的每份提案项数上限无关。`action:update` 配合 `budget.policy:NO_CAP` 仍只构造组合预算更新，不构造活动移出请求。
 
 ## 官方接口核实（2026-10-23）

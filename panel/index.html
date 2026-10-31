@@ -68,6 +68,8 @@ button.ghost { background: transparent; }
 .seg button { border: 0; border-radius: 0; }
 .seg button.active { background: var(--ink); color: var(--bg); }
 .prop { border-top: 1px solid var(--line); padding: 10px 0; font-size: 13px; }
+#decisionHistory { overflow-wrap: anywhere; }
+#decisionHistory summary { cursor: pointer; }
 .prop:first-child { border-top: 0; }
 .prop .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .prop code { font-size: 12px; }
@@ -115,6 +117,11 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
     </section>
 
     <div style="display:grid; gap:16px; align-content:start;">
+      <section class="card" aria-labelledby="decisionTitle">
+        <h2 id="decisionTitle">经营诊断与行动复盘</h2>
+        <p class="hint">最近保存的诊断和实验计划，只读展示，不是当前账户状态或已执行证明。告诉 AI“诊断这个 ASIN，并把行动与复盘记下来”即可开始；不需要手填大表。</p>
+        <div id="decisionHistory"></div>
+      </section>
       <section class="card ziniao">
         <h2>紫鸟浏览器控制</h2>
         <p class="hint">允许 AI 通过紫鸟浏览器打开你的店铺后台、读取页面，并在你批准后代为点击和填写。只在官方接口做不到时使用。不跟随“一键全开”。</p>
@@ -205,8 +212,33 @@ function rowHtml(it) {
   </div>`;
 }
 
+function decisionHistoryHtml(history) {
+  if (!history) return '<p class="empty">暂无经营诊断记录。</p>';
+  if (history.error) return `<p class="hint">${esc(history.error)}</p>`;
+  const goals = { validate_demand: '验证需求', scale_validated: '扩大已验证销量', protect_profit: '稳定盈利', clear_inventory: '清理库存' };
+  const scopeLabel = s => esc(`${s.store} · ${s.marketplace} · ${s.sku || s.asin} · ${s.currency} · ${s.timezone}`);
+  const cards = history.diagnostics.map(c => `<article class="prop">
+    <div class="head"><b>${scopeLabel(c.scope)}</b></div>
+    <div class="sub">${esc(c.scope.startDate)}—${esc(c.scope.endDate)} · ${esc(goals[c.goal.objective] || '目标待核对')}${c.goal.confirmation !== 'confirmed' ? '（未确认）' : '（输入声明已确认）'} · ${esc(c.evidenceCount)} 条来源</div>
+    <p class="hint">${esc(c.statusMeaning)}</p>
+    ${c.recommendations.length ? '<b>优先复核（未执行）</b><ul>' + c.recommendations.map(a => `<li>${esc(a.object.id)}：${esc(a.reason)}</li>`).join('') + '</ul>' : '<p class="hint">暂无可进入人工复核的动作；先补证，不强凑三项。</p>'}
+    ${c.deferredCount ? `<details><summary>暂不动 / 后续复核：${esc(c.deferredCount)} 项（下列最多展示3项）</summary><ul>${c.deferred.map(a => `<li>${esc(a.object.id)}：${esc(a.reason)}<p class="hint">${esc(a.blockingReasons.join('；') || a.deferredReason)}</p></li>`).join('')}</ul></details>` : ''}
+    <div class="sub">诊断 ${esc(c.id)} · 保存于 ${esc(c.createdAt)}</div>
+  </article>`).join('');
+  const plans = history.experiments.map(p => `<article class="prop"><b>${scopeLabel(p.scope)}</b><p>${esc(p.hypothesis)}</p>
+    <div class="sub">最早复盘 ${esc(p.earliestReviewDate)}（${esc(p.scope.timezone)}，未安排自动提醒）</div>
+    <div class="sub">计划新增支出上限 ${esc(p.maxAdditionalSpend)} ${esc(p.scope.currency)} · 损失上限 ${esc(p.maxLoss)} ${esc(p.scope.currency)}（仅记录，非授权或平台熔断）</div>
+    <p class="hint">${esc(p.statusExplanation)}</p>
+    ${p.latestReview ? `<details><summary>已记 ${esc(p.reviewCount)} 次复盘 · ${esc(p.latestReview.statusExplanation)}</summary><p>${esc(p.latestReview.businessOutcome.summary)}</p><p class="hint">${esc(p.latestReview.limitations.join('；'))}</p><div class="sub">${esc(p.latestReview.createdAt)}${p.latestReview.decisionExplanation ? ' · ' + esc(p.latestReview.decisionExplanation) : ''}；因果未知，未自动执行。</div></details>` : '<p class="hint">尚无复盘记录。</p>'}
+    <div class="sub">实验 ${esc(p.id)}</div></article>`).join('');
+  return (cards || '<p class="empty">还没有保存诊断。先由对应运营模块取证，再生成诊断卡。</p>')
+    + (plans ? '<h3 style="font-size:14px">最近的本地实验计划</h3>' + plans : '')
+    + `<p class="hint">${esc(history.note || '仅本地历史，不是当前账户状态。')} 每类最多展示最近3条，完整快照与追加复盘可让 AI 用查询工具读取。</p>`;
+}
+
 function render() {
   $('version').textContent = `v${S.version}`;
+  $('decisionHistory').innerHTML = decisionHistoryHtml(S.decisionHistory);
   const items = S.switches.items;
   const normal = items.filter((x) => x.id !== 'ziniao.control');
   const groups = [...new Set(normal.map((x) => x.group))];

@@ -54,6 +54,7 @@ Load each applicable reference in full. A narrow result does not inherit a full-
 | Placement, rank, same-screen competitor/product-page cross-diagnosis | [placement-and-competitor-cross-diagnosis.md](references/placement-and-competitor-cross-diagnosis.md) |
 | AMC path, lag, overlap or frequency analysis | [amazon-marketing-cloud.md](references/amazon-marketing-cloud.md) |
 | Current eligibility, placement, attribution, fees, promotions, Vine, reviews or authority | [policy-permissions-and-onsite-support.md](references/policy-permissions-and-onsite-support.md) |
+| Cross-module ASIN diagnosis, saved actions or follow-up experiment review | [诊断与行动复盘](../xander-operations/references/diagnostic-action-review.md); reuse this skill's original evidence, economics and strategy IDs, not a replacement strategy schema |
 | Structured package/schema, lineage or readiness claim | [input-and-output-contract.md](references/input-and-output-contract.md) |
 | Complete plan/change package or authorized execution | [full-strategy-workflow.md](references/full-strategy-workflow.md), with applicable dependencies above |
 
@@ -83,4 +84,4 @@ Read SP, SB and SD separately and keep per-product coverage and enabled/paused/a
 
 ## 收尾
 
-执行过的改动、复盘时间（一般 7–14 天后）和回退条件用 `xander_archive_note` 记下；新确认的成本或利润底线用 `xander_archive_set_fact` 记下。规则见 [店铺档案](../xander-operations/references/business-context.md)。
+执行过的改动、按样本积累/归因回填/报表可得时间确定的最早复盘时点与回退条件，用 `xander_archive_note` 简记；需要关联诊断与动作的追加式复盘时，按 [诊断与行动复盘](../xander-operations/references/diagnostic-action-review.md) 使用本地账本，分开记录平台回读和描述式经营结果，不因经过固定天数就宣称效果已验证。日期记录不会创建监控；恢复原值仍需新的当前精确审批。新确认的成本或利润底线用 `xander_archive_set_fact` 记下，规则见 [店铺档案](../xander-operations/references/business-context.md)。

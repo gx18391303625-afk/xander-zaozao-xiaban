@@ -14,7 +14,7 @@ const server = http.createServer(async (req, res) => {
   state.calls.push({ path: req.url, body, scope: req.headers['amazon-advertising-api-scope'] });
   const resource = req.url.split('/').at(-1);
   const product = body.adProductFilter.include[0];
-  const limit = product === SB ? 100 : 1000;
+  const limit = product === SB ? (resource === 'targets' ? 5000 : 100) : 1000;
   if (body.maxResults > limit) return json(400, { code: 'BAD_REQUEST', message: `Maximum supported: ${limit}` });
   if (state.secondPageFails && body.nextToken) return json(400, { code: 'BAD_REQUEST', message: 'Synthetic continuation denied' });
   const start = body.nextToken ? 100 : 0;
@@ -76,6 +76,26 @@ test('SB continuation failure rejects instead of returning the first page as com
   state.secondPageFails = true;
   await assert.rejects(listEntities('synthetic-query', 'sb.campaigns'), /Synthetic continuation denied/);
   assert.equal(state.calls.length, 2);
+});
+
+test('SP target and keyword aliases use the pinned 1000-item target limit', async () => {
+  for (const entity of ['sp.targets', 'sp.keywords', 'sp.negativeKeywords']) {
+    state.calls = [];
+    const result = await listEntities('synthetic-query', entity, { filters: { maxResults: 5000 } });
+    assert.equal(result.complete, true);
+    assert.equal(result.count, 101);
+    assert.equal(state.calls[0].path, '/adsApi/v1/query/targets');
+    assert.equal(state.calls[0].body.maxResults, 1000);
+    if (entity !== 'sp.targets') {
+      assert.deepEqual(state.calls[0].body.targetTypeFilter, { include: ['KEYWORD'] });
+      assert.deepEqual(state.calls[0].body.negativeFilter, { include: [entity === 'sp.negativeKeywords'] });
+    }
+  }
+});
+
+test('SB targets retain their separate 5000-item contract instead of campaign limits', async () => {
+  await unifiedQuery('synthetic-query', { ad: 'sb', resource: 'targets', profileId: '900', maxResults: 5000 });
+  assert.equal(state.calls.at(-1).body.maxResults, 5000);
 });
 
 test('invalid entity page sizes are rejected before any network request', async () => {

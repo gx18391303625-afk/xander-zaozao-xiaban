@@ -10,6 +10,7 @@ import { loadConfig, updateConfig } from '../lib/config.js';
 import { listProposals, panelDecision, changeLog } from '../lib/proposals.js';
 import { getSecret } from '../lib/secrets.js';
 import { VERSION } from '../lib/version.js';
+import { decisionSummary } from './decision-summary.js';
 
 const HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
 const HTML_UNAVAILABLE = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>面板暂时无法加载</title><body><h1>面板暂时无法加载</h1><p>页面资源暂时不可用，请稍后刷新。若插件已更新，请在当前操作完成后从新版本重新打开面板。</p></body></html>';
@@ -26,6 +27,7 @@ function state() {
     ziniaoConfigured: !!cfg.ziniao?.enabled,
     proposals: listProposals(20),
     ledger: changeLog(40).reverse(),
+    decisionHistory: decisionSummary(cfg),
   };
 }
 

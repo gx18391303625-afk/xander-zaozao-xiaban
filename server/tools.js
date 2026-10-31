@@ -22,6 +22,7 @@ import * as ziniao from '../lib/ziniao.js';
 import { isOn } from '../lib/switches.js';
 import { accessToken } from '../lib/lwa.js';
 import { marketplaceById, marketplace as mpOf } from '../lib/regions.js';
+import { buildDecisionTools } from './decision-tools.js';
 
 const MAX_INLINE = 60_000;
 
@@ -214,6 +215,9 @@ export function buildTools(version) {
         return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
       },
     },
+
+    // ---------------- 经营诊断 / 行动与实验复盘（仅本地） ----------------
+    ...buildDecisionTools(),
 
     // ---------------- 档案库（本地） ----------------
     {
@@ -426,4 +430,6 @@ export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊
 - 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。
 - 优惠券只有准备、网页交接与官方只读查询。HANDOFF_READY不代表已提交。宿主电脑操控仅在有工具且用户允许前台操作时使用，不强依赖紫鸟。
 - FBA 用 xander_fba_inbound 读取；fba.inbound 只支持美国站先装箱流程。每份提案一个动作，异步成功后独立回读再进入下一步。分仓费、运输报价及合作承运扣款须单独明确批准；箱唛/提单也走审批，生成标签不代表实际发运。
-- 未知数据保持未知，不当 0；模拟结果标注 SIMULATED。`;
+- 跨模块 ASIN 复盘可用 xander_diagnose_asin 整理已有证据，xander_save_diagnostic 保存快照；先由各模块采集并核对来源，不让用户手填大表。目标由用户确认，不按上架月龄自动放量；最多三项优先待办，门禁未知先补证。
+- xander_experiment_create/review 只记录本地行动计划与描述式复盘；提案引用、到期日期、门禁满足均不代表授权、已执行或自动监控。历史快照不能替代当前账户回读；扩量、停止和恢复基准仍需当前精确提案与批准。
+- 未知数据保持未知，不当 0；模拟结果标注 SIMULATED / NOT LIVE（模拟，非真实投放）。`;
