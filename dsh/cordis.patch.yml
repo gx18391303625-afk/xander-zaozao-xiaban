@@ -1,0 +1,12 @@
+# One package, shared business handlers: Codex/Claude use MCP; DSH registers native tools.
+# Resolve resources from the installed package, never a developer's absolute checkout path.
+- insert:
+    - id: xander-zaozao-skills
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: xander-zaozao-xiaban
+        includeDefaultRoots: false
+        customSkillDirs:
+          - !!js "process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('xander-zaozao-xiaban/package.json')), 'skills')"
+    - id: xander-zaozao-xiaban
+      name: xander-zaozao-xiaban

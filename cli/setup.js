@@ -16,7 +16,7 @@ export async function setup() {
   ensureHome();
   console.log(c.bold('\nXander（自用）早早下班小助手 · 接入向导'));
   console.log(c.dim(`数据目录：${homeDir()}    凭证保存在：${backendLabel()}`));
-  console.log(c.dim('所有令牌只存在你这台电脑上，不会上传到任何地方。随时按 Ctrl+C 退出。'));
+  console.log(c.dim('凭证保存在本机；授权和业务请求会访问你所选的接口，业务数据也会按宿主所选模型传输。密钥只在你自己的终端输入，不要贴到聊天里。随时按 Ctrl+C 退出。'));
   for (;;) {
     const cfg = loadConfig();
     const stores = Object.keys(cfg.stores);
@@ -26,7 +26,7 @@ export async function setup() {
       { label: '卖家精灵 MCP（关键词/竞品数据，可选）', value: 'sellersprite' },
       { label: '云备份档案库（你自己的 AWS S3，可选）', value: 'sync' },
       { label: '紫鸟浏览器（官方接口做不到时兜底，可选）', value: 'ziniao' },
-      { label: '安装到 Claude / Codex（显示安装方法）', value: 'install' },
+      { label: '安装到 Claude / Codex / DSH（显示安装方法）', value: 'install' },
       { label: '偏好设置（审批方式、演练模式）', value: 'settings' },
       { label: '退出', value: 'exit' },
     ]);
@@ -229,7 +229,7 @@ async function setupZiniao() {
 
 // ---------------- 安装说明 ----------------
 export function installGuide() {
-  title('安装到 Claude / Codex');
+  title('安装到 Claude / Codex / DSH');
   const server = path.join(ROOT, 'server', 'index.js');
   console.log(`${c.bold('A. Claude Code（推荐）')}
    在 Claude Code 里输入：
@@ -252,7 +252,29 @@ ${c.bold('C. Claude 桌面版（手动接工具）')}
      "mcpServers": { "xander": { "command": "node", "args": ["${server.replace(/\\/g, '/')}"] } }
    技能部分：把 skills 下各文件夹打包上传到“设置 → 功能 → 技能”。
 
-${c.dim('网页版 ChatGPT / claude.ai 连不到你电脑上的本地服务，这是有意的设计：数据不出你的电脑。')}
+${c.bold('D. DeepSeek Harness（DSH，原生接入）')}
+   支持声明：DSH ^0.2.1-rc.5；Node.js >=22.13（Desktop 可用自带 Node 运行时）。
+   在当前 Desktop 插件管理器的“来源”输入框填 v2.5.1 固定版本来源，或下方本地仓库绝对目录：
+      github:gx18391303625-afk/xander-zaozao-xiaban#v2.5.1
+     ${ROOT}
+   由插件管理器安装；不为运行中的 Desktop 改 profile，不手工编辑其包配置或补丁。
+   仅独立的非 Desktop 本地 DSH 可用：
+     dsh plugin --profile <profile> add <目录/来源>
+   也可填该版本的 Release 安装包（先在发布页核对版本与校验值）：
+     https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.5.1/xander-zaozao-xiaban-2.5.1.tgz
+   DSH 直接注册 xander_* 工具，复用原 handler 和安全链，不再另起 Xander MCP 子进程。
+   官方 filesystem provider 加载包内 7 个技能，不复制到 ~/.dsh/skills；用户同名技能可能覆盖包技能，先核对来源。
+   只读验收：xander_status 参数 {"check":false}；xander_switches 参数 {}，不要调用真实业务工具。
+   如有旧的手工 Xander MCP，先取得用户确认，再通过插件管理器禁用重复连接；不要自动改其他宿主。
+   接入令牌只由用户在自己的终端运行 xander setup 输入；不把密钥贴进聊天或插件配置。
+   安装不自动打开写入权限；无新增 DSH 业务页，原有本机安全面板仍用 xander panel。
+   DSH 停止或超时不能撤回已提交的 Amazon 请求；不自动重试，结果未知须保留 proposalId 核验。
+   更新、停用或卸载通过插件管理器，不删除 ~/.xander-zaozao/（或 XANDER_HOME）业务数据和凭证。
+   本地安装、GitHub 发行和市场收录是独立步骤；目录 PR 支持 Release 安装包，但官方 Discover 索引另需 npm 发行。
+   发布和投稿前核对精确提交、分发包及维护者授权；市场 PR 已提交不等于审核通过，不承诺审核或同步时间。
+   此适配仍未完成真店读写验证。完整说明：${path.join(ROOT, 'docs', 'dsh.md')}
+
+${c.dim('网页版 ChatGPT / claude.ai 连不到你电脑上的本地服务。凭证、配置和档案本地保存；业务数据按你所选接口和模型传输，不能承诺数据完全不出电脑。')}
 `);
 }
 

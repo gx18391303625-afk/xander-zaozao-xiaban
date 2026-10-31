@@ -14,7 +14,7 @@ if (major < 22 || (major === 22 && minor < 13)) {
 const HELP = `${c.bold(`Xander（自用）早早下班小助手 v${VERSION}`)}
 
 常用命令：
-  xander setup              接入向导：店铺、广告、卖家精灵、云备份、紫鸟、安装到 Claude/Codex
+  xander setup              接入向导：店铺、广告、卖家精灵、云备份、紫鸟、Claude/Codex/DSH 安装说明
   xander doctor             体检：逐项测试连接是否正常
   xander panel              打开写入开关面板（浏览器）
   xander switch list        在终端查看开关
@@ -23,8 +23,13 @@ const HELP = `${c.bold(`Xander（自用）早早下班小助手 v${VERSION}`)}
   xander archive list | show <店铺> [SKU] | import <店铺> <CSV文件> | export <店铺>
   xander sync push | pull [--replace]   加密备份档案库到你自己的 S3 / 从 S3 恢复
   xander log                查看最近的写入日志
-  xander install            显示安装到 Claude / Codex 的方法
-  xander mcp                启动 MCP 服务（由 Claude/Codex 自动调用，一般不用手动运行）
+  xander install            只显示 Claude / Codex / DSH 安装方法，不执行安装
+  xander mcp                启动 MCP 服务（供 Claude/Codex；DSH 原生接入不使用）
+
+DSH：兼容 ^0.2.1-rc.5，Node.js >=22.13（Desktop 可用自带 Node 运行时）。
+  DSH 从 v2.5.1 起支持原生接入：Desktop 插件管理器的“来源”填固定版本 GitHub 来源或本地仓库绝对目录，见 docs/dsh.md。
+  不为运行中的 Desktop 改 profile 或手工编辑包配置；只读验收用 xander_status(check=false)、xander_switches({})。
+  凭证只由用户在自己的终端运行 xander setup 输入；安装不会自动打开写入权限，面板仍用 xander panel。
 `;
 
 const [cmd, ...args] = process.argv.slice(2);

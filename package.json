@@ -1,17 +1,32 @@
 {
   "name": "xander-zaozao-xiaban",
-  "version": "2.5.0",
-  "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件，支持 Claude 和 Codex（GPT）。",
+  "version": "2.5.1",
+  "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件，支持 DSH、Claude 和 Codex（GPT）。",
   "type": "module",
   "license": "MIT",
+  "main": "./dsh/index.js",
+  "icon": "assets/icon.svg",
+  "exports": {
+    ".": "./dsh/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./dsh/locale/*.json",
+    "./icon": "./assets/icon.svg"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./dsh/cordis.patch.yml"
+    }
+  },
   "bin": {
     "xander": "cli/xander.js"
   },
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.13",
+    "dsh": "^0.2.1-rc.5"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
+    "test:dsh": "node --test test/dsh.test.js",
     "mcp": "node server/index.js",
     "panel": "node cli/xander.js panel",
     "setup": "node cli/xander.js setup",
@@ -29,9 +44,13 @@
     "mcp",
     "claude",
     "codex",
-    "plugin"
+    "plugin",
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness"
   ],
   "files": [
+    "dsh",
     "scripts/sync-plugin.mjs",
     "cli",
     "lib",
