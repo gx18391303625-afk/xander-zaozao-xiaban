@@ -17,6 +17,7 @@ import { listSwitches } from '../lib/switches.js';
 import { prepareChange, executeChange, verifyChange, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
 import { readPromotions } from '../lib/promotions.js';
 import { getListingImageRequirements, listAplusDocuments, validateAplusContent, getAplusStatus } from '../lib/ops-content.js';
+import { ACCOUNT_BUDGET_OP } from '../lib/ops-ads-account-budget.js';
 import { OPS } from '../lib/ops.js';
 import * as ziniao from '../lib/ziniao.js';
 import { isOn } from '../lib/switches.js';
@@ -171,6 +172,16 @@ export function buildTools(version) {
     },
 
     // ---------------- 广告接口（只读） ----------------
+    {
+      name: 'xander_ads_account_budget',
+      description: '只读查询 seller SP 账户总日预算 dailyBudget。此字段不证明控制台预算模式；缺失不当0。写入仅走 ads.sp.account.budget 精确提案。',
+      inputSchema: S({ store, marketplace: mkt }),
+      annotations: READ,
+      async handler({ store: alias, marketplace }) {
+        const r = await ACCOUNT_BUDGET_OP.read(getStore(alias), { marketplace });
+        return out({ ...r, fetchedAt: new Date().toISOString(), note: '仅 SP，不含 SB/SD；dailyBudget 数值与控制台模式应分别核验。' });
+      },
+    },
     {
       name: 'xander_ads_profiles',
       description: '列出广告账户下的 profile（每个站点一个），用于核对店铺绑定是否正确。',
