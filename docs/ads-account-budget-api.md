@@ -1,4 +1,4 @@
-# Seller SP account dailyBudget API
+# US seller SP account dailyBudget API
 
 Official reference: [Profiles](https://advertising.amazon.com/API/docs/en-us/reference/2/profiles), [OpenAPI](https://d3a0d0y2hgofx6.cloudfront.net/en-us/profiles/3-0/openapi.yaml).
 
@@ -8,11 +8,14 @@ Official reference: [Profiles](https://advertising.amazon.com/API/docs/en-us/ref
 - `xander_ads_account_budget` is read only. `ads.sp.account.budget` requires its own default-off switch and the existing prepare → approve → execute once → independent readback workflow.
 - Verify the configured marketplace, currency, seller identity and profile before preparing. Missing amounts are unknown, never zero. Changed bindings/old values and unresolved writes block mutation. Unknown receipts and transport failures require reconciliation, not resubmission.
 
-## Important verification boundary
+## Live verification and limits (2026-11-04)
 
-The official schema identifies `dailyBudget` as writable but does not document a sentinel for removing the console's account budget cap. A read of `dailyBudget=1` alone does **not** prove whether “use campaign-level budgets” or “use daily budget cap” is selected. During an initial console round trip, the API still returned 1 after the console showed the campaign-level mode. This may reflect independent mode/value state or propagation delay; it is not evidence that 0 removes a cap.
-
-Therefore the numeric 0 request is an explicitly warned verification candidate, not a proven “restore normal” operation. Do not migrate a live dayparting schedule to this API until both directions have been independently verified on the console. Do not infer removal from an HTTP success or numeric readback alone. The existing browser schedule remains the fallback pending that verification.
+- `dailyBudget=0` was explicitly rejected with `INVALID_ARGUMENT`, `Minimum daily budget is 1 USD`. This operation now rejects 0 locally. It does not offer a “remove cap” mode.
+- An authorized USD1→USD2 write returned a success receipt; an independent console refresh showed the enabled account cap as USD2. The test was rolled back to USD1 on the console and independently refreshed. No other advertising setting was submitted.
+- The Profiles GET endpoints (single and list) still returned USD1 while the console already showed USD2. A successful write with a different numeric readback is therefore `AWAITING_READBACK` (pending), not success and not permission to resend. Unresolved mutations remain locked pending reconciliation. There is no guaranteed propagation duration.
+- The official schema identifies `dailyBudget` as writable but does not document how to remove the console account cap. The current Profiles, Account Budgets and Advertising Accounts contracts do not establish such a supported removal operation. Do not guess null/negative amounts or substitute a large cap for the original uncapped mode.
+- Numeric `dailyBudget` is not proof of the console's selected budget mode. Missing values are not zero. USD1 is the tested minimum; writes are currently restricted to US/NA seller accounts rather than assuming other marketplaces use the same minimum.
+- The daily 01:00–07:00 schedule cannot safely be migrated wholly to this API while “restore campaign-level budgets” lacks a verified endpoint. Keep that schedule on its existing browser route. The new API capability is a guarded positive-amount setter, not an Amazon-native dayparting or cap-removal feature.
 
 ## Tests
 

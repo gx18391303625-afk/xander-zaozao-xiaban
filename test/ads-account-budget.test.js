@@ -22,16 +22,14 @@ test('reads live seller identity and builds only profileId/dailyBudget', async (
   assert.deepEqual(state.calls[1], { alias:'synthetic', method:'PUT', path:'/v2/profiles', body:req.body, noProfile:true, isWrite:true });
   state.profile.dailyBudget = 1; assert.equal((await op.readback(store, c, 1)).match, true);
 });
-test('0 is preserved exactly and never substituted for a missing budget', async () => {
-  const { op, state, c } = fixture(); c.value = 0; const r = await op.read(store, c);
-  assert.equal(op.build(c,r,op.check(c,r).newValue).body[0].dailyBudget, 0);
-  delete state.profile.dailyBudget; await assert.rejects(op.read(store,c), /缺失/);
+test('0 cannot remove a cap; missing and zero readbacks are distinct', async () => {
+ const {op,state,c}=fixture();const r=await op.read(store,c);assert.throws(()=>op.check({...c,value:0},r),/预算/);state.profile.dailyBudget=0;assert.equal((await op.read(store,c)).old,0);delete state.profile.dailyBudget;await assert.rejects(op.read(store,c),/缺失/);
 });
 test('rejects wrong seller, vendor, station, currency, profile and region', async () => {
   for (const patch of [{ profileId:901 }, { profileId:['900'] }, { countryCode:'CA' }, { currencyCode:'CAD' }, { accountInfo:{type:'vendor'} }, { accountInfo:{type:'seller',id:'OTHER'} }]) {
     const { op,state,c }=fixture();Object.assign(state.profile,patch);await assert.rejects(op.read(store,c), /核验/);
   }
-  const { op,c }=fixture();await assert.rejects(op.read({...store,region:'EU'},c), /区域/);
+  const { op,c }=fixture();await assert.rejects(op.read({...store,region:'EU'},c), /NA/);
 });
 test('rejects extra campaign/other setting fields before any request', async () => {
   const { op,state,c }=fixture();for(const k of ['campaignId','bid','budgetIncrease','profileId'])await assert.rejects(op.read(store,{...c,[k]:1}), /其他字段/);assert.equal(state.calls.length,0);
@@ -58,3 +56,5 @@ test('explicit rejection differs from timeout and server uncertainty; never retr
 test('unresolved operations lock the same profile regardless of next amount',()=>{
  const {op}=fixture();assert.deepEqual(op.mutationIdentity({}, {profileId:'900',body:[{dailyBudget:1}]}),op.mutationIdentity({}, {profileId:'900',body:[{dailyBudget:0}]}));
 });
+
+test('successful write with stale GET stays pending, never falsely verified',async()=>{const {op,c}=fixture();const r=await op.readback(store,c,2,{ok:true});assert.equal(r.match,false);assert.equal(r.status,'AWAITING_READBACK');});

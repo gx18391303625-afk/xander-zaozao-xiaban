@@ -42,7 +42,7 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 
 ## SP 账户总预算
 
-用 `xander_ads_account_budget` 只读查询 seller SP 的 `dailyBudget`；数值不代表控制台的总上限启用模式。`ads.sp.account.budget` 是独立默认关闭的接口开关，仅修改该数字，不改活动预算、竞价或 SB/SD。0 的取消总上限语义尚须实店独立核验，不能据其数值或HTTP成功迁移分时任务。见 [账户总预算接口](../../docs/ads-account-budget-api.md)。
+用 `xander_ads_account_budget` 只读查询 seller SP 的 `dailyBudget`；数值不代表控制台的总上限启用模式。`ads.sp.account.budget` 是独立默认关闭的接口开关，仅修改该数字，不改活动预算、竞价或 SB/SD。美国站实测0被拒绝（最低USD1），本操作只允许正数金额且限US/NA；不能取消总上限。Profiles回读可能延迟，状态为待回读时只核验不重发；未验证取消上限接口前不能迁移整套分时任务。见 [账户总预算接口](../../docs/ads-account-budget-api.md)。
 
 ## 改亚马逊的任何东西
 

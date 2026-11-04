@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.5.3 — 2026-11-04
+
+- Add read-only `xander_ads_account_budget` and separately gated `ads.sp.account.budget` for US/NA seller SP account positive budget amounts through the official Profiles API. Requests contain only profileId and dailyBudget; other ad settings are untouched.
+- Reject zero locally after the US API rejected it (minimum USD1). Removing an account cap remains unsupported; do not substitute a large number or migrate a full dayparting schedule on that assumption.
+- Preserve pending status when a successful write is followed by stale Profiles reads, block unresolved resubmission, and validate profile/seller/currency/region bindings before execution.
+- Add 16 synthetic contract/proposal safety tests; live positive-amount write was independently confirmed on the console and returned to the original USD1 test state. No claim of an API-only cap-removal or scheduling solution.
+
+
 ## 2.5.2（2026-11-04）紫鸟 WebDriver 打开店铺失败修复
 
 - 修复 `ziniao.control` 与 `xander_ziniao_snapshot` 一律失败于「无权限操作 错误码：102」的问题。根因是 `startBrowser` 同时传了 `browserOauth` 与 `browserId`，而紫鸟在两者并存时**优先使用 `browserId`**；`getBrowserList` 返回的 `browserOauth` 是加密店铺标识，被当作明文店铺 ID 传入后被判定为无效，紫鸟返回 102。现在只传 `browserOauth`。
