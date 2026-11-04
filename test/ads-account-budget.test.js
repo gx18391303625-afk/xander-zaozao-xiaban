@@ -58,3 +58,15 @@ test('unresolved operations lock the same profile regardless of next amount',()=
 });
 
 test('successful write with stale GET stays pending, never falsely verified',async()=>{const {op,c}=fixture();const r=await op.readback(store,c,2,{ok:true});assert.equal(r.match,false);assert.equal(r.status,'AWAITING_READBACK');});
+
+test('read separates the stored profile amount from any proven console mode', async () => {
+  const { op, state } = fixture();
+  const c = { op: op.id, marketplace: 'US', value: 1 };
+  // 2026-11-04 实测：控制台已切回“使用广告活动级别预算”，GET 仍返回残留的 1。
+  state.profile.dailyBudget = 1;
+  const r = await op.read(store, c);
+  assert.equal(r.old, 1);
+  assert.equal(r.storedDailyBudget, 1);
+  assert.equal(r.budgetModeProven, false);
+  assert.match(r.entity.name, /存储值/);
+});

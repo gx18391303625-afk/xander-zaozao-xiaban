@@ -1,5 +1,11 @@
 # 更新记录
 
+## 2.5.5 — 2026-11-04
+
+- Fix a reporting trap in `xander_ads_account_budget`: Profiles API has no budget-mode field, so after switching the console back to "使用广告活动级别预算" the stored `dailyBudget` is both stale and mode-blind (live case: after the console switched to campaign-level, GET kept returning 1 for about ten minutes and then settled on 21000000, the API maximum, i.e. no cap). The read now exposes `storedDailyBudget` and `budgetModeProven: false`, and labels the profile amount as a stored value rather than the effective cap.
+- Keep `old`/readback semantics unchanged: the stored amount is still exactly what a positive-amount PUT overwrites, so proposals and stale-readback handling behave as before. No new write path, no cap removal, no change to campaign budgets, bids, rollover or SB/SD.
+- Document that neither the amount nor a zero-vs-positive difference proves the console mode (zero is rejected), that a stale GET can trail the console by about ten minutes, and that mode must be verified on the console page.
+
 ## 2.5.4 — 2026-11-04
 
 - Add narrowly scoped local reconciliation for successful SP account-budget writes independently observed in Ziniao and then rolled back to the original amount. Preserve the proposal hash and original execution history; append evidence and use a distinct terminal state rather than falsely reporting current API verification.

@@ -174,12 +174,12 @@ export function buildTools(version) {
     // ---------------- 广告接口（只读） ----------------
     {
       name: 'xander_ads_account_budget',
-      description: '只读查询 seller SP 账户总日预算 dailyBudget。此字段不证明控制台预算模式；缺失不当0。写入仅走 ads.sp.account.budget 精确提案。',
+      description: '只读查询 seller SP 账户每日预算的存储值 dailyBudget。切回“使用广告活动级别预算”后该数值仍会保留（例如 1），不代表当前生效上限；模式必须以控制台页面核验。缺失不当0。写入仅走 ads.sp.account.budget 精确提案。',
       inputSchema: S({ store, marketplace: mkt }),
       annotations: READ,
       async handler({ store: alias, marketplace }) {
         const r = await ACCOUNT_BUDGET_OP.read(getStore(alias), { marketplace });
-        return out({ ...r, fetchedAt: new Date().toISOString(), note: '仅 SP，不含 SB/SD；dailyBudget 数值与控制台模式应分别核验。' });
+        return out({ ...r, fetchedAt: new Date().toISOString(), note: '仅 SP，不含 SB/SD；storedDailyBudget 是 profile 存储值，budgetModeProven=false 表示接口无法证明当前模式，须从控制台核验。' });
       },
     },
     {
