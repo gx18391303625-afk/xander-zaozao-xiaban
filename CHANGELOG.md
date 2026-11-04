@@ -1,5 +1,11 @@
 # 更新记录
 
+## 2.5.2（2026-11-04）紫鸟 WebDriver 打开店铺失败修复
+
+- 修复 `ziniao.control` 与 `xander_ziniao_snapshot` 一律失败于「无权限操作 错误码：102」的问题。根因是 `startBrowser` 同时传了 `browserOauth` 与 `browserId`，而紫鸟在两者并存时**优先使用 `browserId`**；`getBrowserList` 返回的 `browserOauth` 是加密店铺标识，被当作明文店铺 ID 传入后被判定为无效，紫鸟返回 102。现在只传 `browserOauth`。
+- 实测：修复后 `startBrowser` 返回 `statusCode 0` 与 `debuggingPort`，可通过 CDP 正常导航并读取卖家后台页面。仅验证了读取与导航，未验证真实业务写入。
+- 文档补充排障前提：紫鸟须以 `--run_type=web_driver --ipc_type=http --port=<端口>` 启动（macOS 用 `open -a ... --args`），启动前需关闭紫鸟主进程并清理 `instances/<userdir>/custom-lockfile`，否则客户端会因残留锁静默退出；本地端口每次重启可能变化，配置文件里的端口必须与启动参数一致。
+
 ## 2.5.1（2026-10-31）DSH 原生插件适配
 
 - 同一根包新增 DeepSeek Harness（DSH）bundle、原生 Host 入口、名称/说明/图标导出；固定版本来源见 [DSH 接入指南](<docs/dsh.md>)。保留 Claude / Codex 原有 MCP 与安装入口，不另起 Xander MCP 子进程。
