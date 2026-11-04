@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.5.4 — 2026-11-04
+
+- Add narrowly scoped local reconciliation for successful SP account-budget writes independently observed in Ziniao and then rolled back to the original amount. Preserve the proposal hash and original execution history; append evidence and use a distinct terminal state rather than falsely reporting current API verification.
+- Require both console observation references, explicit confirmation, recent rollback observation, unchanged profile identity and a fresh matching API read. Unknown/failed writes, dry runs and arbitrary values cannot unlock mutations. Original closed requests remain non-replayable.
+- Ziniao read-only snapshots can wait for a SPA control and expose radio/checkbox/number state plus observation time; password/text inputs are excluded.
+- Fix the stale pending-record deadlock without changing any Amazon advertising setting or weakening other unresolved-write guards.
+
+
 ## 2.5.3 — 2026-11-04
 
 - Add read-only `xander_ads_account_budget` and separately gated `ads.sp.account.budget` for US/NA seller SP account positive budget amounts through the official Profiles API. Requests contain only profileId and dailyBudget; other ad settings are untouched.

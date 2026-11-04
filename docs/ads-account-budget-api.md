@@ -20,3 +20,11 @@ Official reference: [Profiles](https://advertising.amazon.com/API/docs/en-us/ref
 ## Tests
 
 Synthetic fixtures cover exact minimal request fields, seller/profile/region binding, default-off switch, dry run, stale old values, changed bindings, invalid numbers, malformed receipts, unknown outcomes, unresolved-mutation blocking and no duplicate execution. These do not establish actual account eligibility or console mode behavior.
+
+## Console verification and rollback reconciliation (2.5.4)
+
+`xander_reconcile_account_budget_rollback` records **local operator evidence** when a successful single SP account-budget write was independently observed in the Ziniao console and subsequently restored to its original amount. It is not an Amazon write and does not mark the original target as currently API-verified.
+
+Supply the original proposal hash, matching profile, the observed applied and original restored amounts, two real observation references, explicit confirmation, and a restored-state observation from the last five minutes. The tool re-reads the bound account and requires its identity and numeric value to match the original state. It preserves the original hash, request, receipt and readback, appends the external evidence, and closes the item as `EXTERNALLY_RECONCILED`. The existing mutation guard then permits a new proposal, while the closed original cannot execute again. Calls are idempotent.
+
+This path refuses unknown/failed/unexecuted writes, dry runs, stale evidence, mismatched profiles, arbitrary restoration amounts, and an unconfirmed current value. Never invent console evidence or use this as a generic unlock. If no real independent observations exist, continue verification instead. Existing unresolved protections for every other operation remain unchanged.

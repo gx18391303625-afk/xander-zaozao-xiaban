@@ -14,7 +14,7 @@ import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
 import * as calc from '../lib/calc.js';
 import { listSwitches } from '../lib/switches.js';
-import { prepareChange, executeChange, verifyChange, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
+import { prepareChange, executeChange, verifyChange, reconcileAccountBudgetRollback, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
 import { readPromotions } from '../lib/promotions.js';
 import { getListingImageRequirements, listAplusDocuments, validateAplusContent, getAplusStatus } from '../lib/ops-content.js';
 import { ACCOUNT_BUDGET_OP } from '../lib/ops-ads-account-budget.js';
@@ -405,6 +405,13 @@ export function buildTools(version) {
       async handler(a) { return out(await verifyChange(a)); },
     },
     {
+      name: 'xander_reconcile_account_budget_rollback',
+      description: '只做本地核验收尾，不修改亚马逊。仅用于成功受理的单项SP账户总预算写入：已通过紫鸟独立观察批准值生效，随后已恢复原值。必须提供两阶段真实观察记录及最近5分钟恢复观察时间；再实时读取接口核对账户和原值。结果未知/失败/未执行不能用它解除锁。保留原哈希和全部执行记录，状态标为外部核验已收尾，不冒充API匹配。',
+      inputSchema: S({ proposalId: str('原提案编号'), hash: str('原提案哈希'), confirmed: bool('操作者已完成两阶段真实独立观察'), profileId: str('独立观察所属profile'), appliedValue: num('独立观察到的原批准金额'), restoredValue: num('独立观察到的恢复原金额'), observedAt: str('恢复后最新观察ISO时间，最近5分钟'), appliedEvidence: str('原批准值已生效的独立观察记录引用'), restoredEvidence: str('恢复原值后刷新核验的独立观察记录引用') }, ['proposalId','hash','confirmed','profileId','appliedValue','restoredValue','observedAt','appliedEvidence','restoredEvidence']),
+      annotations: LOCAL_WRITE,
+      async handler(a) { return out(await reconcileAccountBudgetRollback(a)); },
+    },
+    {
       name: 'xander_change_log',
       description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。',
       inputSchema: S({ limit: num('条数，默认 50') }),
@@ -423,11 +430,11 @@ export function buildTools(version) {
     {
       name: 'xander_ziniao_snapshot',
       description: '（需要用户打开“紫鸟控制”开关）用紫鸟打开指定店铺浏览器，可选跳转到亚马逊后台某个网址，读取页面标题和文字。只读，不点击任何东西。只在官方接口做不到时使用。',
-      inputSchema: S({ browserId: str('紫鸟店铺 ID（从 xander_ziniao_status 获取）'), url: str('可选：亚马逊后台网址') }, ['browserId']),
+      inputSchema: S({ browserId: str('紫鸟店铺 ID（从 xander_ziniao_status 获取）'), url: str('可选：亚马逊后台网址'), waitForSelector: str('可选：只读等待SPA页面控件，最多30秒') }, ['browserId']),
       annotations: READ,
-      async handler({ browserId, url }) {
+      async handler({ browserId, url, waitForSelector }) {
         if (!isOn('ziniao.control')) throw new Error('“紫鸟控制”开关是关着的。请用户在开关面板里打开后再试（AI 不能代开）。');
-        return out(await ziniao.snapshot(browserId, url), 'ziniao');
+        return out(await ziniao.snapshot(browserId, url, { waitForSelector }), 'ziniao');
       },
     },
   ];
