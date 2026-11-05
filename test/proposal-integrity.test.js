@@ -48,3 +48,23 @@ test('marketplace letter case cannot bypass unresolved-creation protection', asy
   assert.equal(duplicate.ok, false);
   assert.match(duplicate.errors[0].error, /未核验|不能换提案/);
 });
+
+test('approved hash survives the JSON save/load round trip even with undefined fields', async () => {
+  const opU = {
+    id: 'test.integrityUndefined', label: 'Synthetic undefined fields',
+    async read() { return { old: 0, marketplace: 'US', entity: {} }; },
+    // 模拟紫鸟步骤里 url/selector/text 互斥为 undefined 的形状
+    check() { return { newValue: { steps: [{ action: 'click', selector: '#a', url: undefined, text: undefined }] }, warnings: [] }; },
+    build() { return {}; },
+    async send() { return { ok: false, status: 'FAILED', error: 'synthetic' }; },
+    async readback() { return { actual: 0, match: false }; },
+  };
+  OPS.push(opU); setSwitch(opU.id, true);
+  try {
+    const r = await prepareChange({ store: 'integrity', changes: [{ op: opU.id, marketplace: 'US' }] });
+    const loaded = loadProposal(r.proposalId);
+    // 回归点：以前这里会抛“提案内容完整性/哈希校验失败”
+    const res = await executeChange({ proposalId: r.proposalId, hash: loaded.hash, approved: true });
+    assert.equal(res.status, 'FAILED');
+  } finally { OPS.splice(OPS.indexOf(opU), 1); }
+});

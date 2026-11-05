@@ -1,5 +1,12 @@
 # 更新记录
 
+## 2.5.6 — 2026-11-05
+
+- Fix approved proposals failing integrity after a save/load round trip. `canonical()` renders `undefined` as `null` while `JSON.stringify` drops the key, so any item holding `undefined` (e.g. ziniao step fields `url`/`selector`/`text`) hashed differently once reloaded; every `ziniao.control` proposal was rejected with "提案内容完整性/哈希校验失败". The hash is now taken over the exact persisted JSON form.
+- Add a `clickText` step action to `ziniao.control` for controls without a stable selector. Amazon Ads' budget-cap "保存" button has only a hashed class, and clicking the radio alone does not persist; the restore flow now clicks the radio and then the button by visible text.
+- Live-verified 2026-11-05: console campaign-level restored at 15:07Z with 25% rollover untouched, after a save-button click. No change to campaign budgets, bids or SB/SD.
+- Add regression tests for the hash round trip and for `clickText` validation.
+
 ## 2.5.5 — 2026-11-04
 
 - Fix a reporting trap in `xander_ads_account_budget`: Profiles API has no budget-mode field, so after switching the console back to "使用广告活动级别预算" the stored `dailyBudget` is both stale and mode-blind (live case: after the console switched to campaign-level, GET kept returning 1 for about ten minutes and then settled on 21000000, the API maximum, i.e. no cap). The read now exposes `storedDailyBudget` and `budgetModeProven: false`, and labels the profile amount as a stored value rather than the effective cap.
