@@ -8,7 +8,7 @@ description: "核算亚马逊站内广告盈亏线，设计或审计 SP/SB/SD �
 - 本会话还没调过就先 `xander_status`；先 `xander_archive_overview` 读采购价、头程、利润底线、库存约束和过往广告决策。
 - 取数：广告对象 `xander_ads_list`（SP/SB 走 Ads API v1 统一接口：sp.campaigns / sp.adGroups / sp.ads / sp.targets / sp.keywords / sp.negativeKeywords / sb.*；SD 暂用原接口 sd.campaigns / sd.targets）；广告报表 `xander_ads_report`（Reporting API v1：preset campaigns、ad_groups、campaigns_summary 或自定 fields；搜索词 sp_search_terms、投放 sp_targeting、推广商品 sp_advertised_product 暂自动用 v3，2027-06-30 关停）；总销售与转化用 `xander_spapi_report` 的 GET_SALES_AND_TRAFFIC_REPORT。SP、SB、SD 分开统计。字段位置和口径见 [取数方法](../xander-operations/references/data-workflow.md)。
 - `campaigns_summary` 也按天返回，下载后不会自动汇总期间总计；先核对日期覆盖，再按账户/站点、广告产品、活动和币种聚合。期间比率用汇总后的分子和分母重算，详见 [取数方法](../xander-operations/references/data-workflow.md)。
-- 快速经济线：`xander_calc_ad_economics`；完整计算与策略包校验用本技能 scripts 里的 Python 脚本（宿主能执行代码时）。
+- 快速经济线：`xander_calc_ad_economics`；广告表现复核：`xander_review_ad_performance`，由 AI 整理报告行，重算指标并形成待核行动，不自动调整账户。完整计算与策略包校验用本技能 scripts 里的 Python 脚本（宿主能执行代码时）。
 - 改账户只走 [写入安全](../xander-operations/references/write-safety.md)：`xander_prepare_change` → 用户批准这一份 → `xander_execute_change` → 回读。可用操作：SP 活动开停/日预算、广告组开停/默认竞价、投放竞价/开停（关键词、商品、自动投放统一用 targetId）、广告商品开停、新增关键词、新增否词（广告组级/活动级）；SB 活动开停/日预算、投放竞价/开停；SD 活动开停/预算、投放竞价/开停（原接口）。SP 新建、位置加价、预算规则和投资组合按 [当前工具范围](../../docs/v2.3-features.md) 及 `xander_switches` 的实际参数使用。预算时间规则不等于分时竞价；本版没有排程 bid 的写入操作。开关只有用户能开。
 - 选品已冻结：新建结构化策略包时 `lineage_mode` 用 `INDEPENDENT_NEW`（新品）或 `INDEPENDENT_EXISTING`（老品），不要新建 `FULL_WORKFLOW`；历史完整链路按原证据保留。旧“交回 `$select-amazon-products`”应按根因改路由：利润核算交 `reconcile-amazon-profit`，在售库存/补货交 `plan-amazon-replenishment`；超出这些运营范围的产品定位、合规或立项判断交用户复核，本插件不做选品（见 [追溯规则](../xander-operations/references/lineage-and-selection.md)）。
 - 未知数字是 null，不是 0；第三方估算标 ESTIMATED；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。
@@ -42,6 +42,7 @@ Load each applicable reference in full. A narrow result does not inherit a full-
 | Standalone economics, costs, ACoS/CPC/TACoS, provisional period profit | [economics-calculation.md](references/economics-calculation.md) |
 | Full strategy scenario evidence, actual-performance lineage, spend caps, learning-loss envelope and traffic readiness | [economics-and-budget-gates.md](references/economics-and-budget-gates.md), after economics calculation |
 | Narrow read-only account review | [read-only-review.md](references/read-only-review.md) |
+| Performance changes, profit/inventory tradeoffs, or an interpretable advertising test | [performance-diagnosis.md](references/performance-diagnosis.md); use the read-only performance tool for supported calculations |
 | Async reports, dated snapshots or shared input versions | [report-reuse-and-input-versions.md](references/report-reuse-and-input-versions.md) |
 | Business Reports/Data Kiosk traffic, child-ASIN conversion, retail/Ads coverage | [business-traffic-and-coverage.md](references/business-traffic-and-coverage.md) |
 | Profit floors, price phases, seasonality, inventory/replenishment, or full-plan operating context | [operating-context-and-replenishment.md](references/operating-context-and-replenishment.md) |
@@ -56,9 +57,11 @@ Load each applicable reference in full. A narrow result does not inherit a full-
 | Current eligibility, placement, attribution, fees, promotions, Vine, reviews or authority | [policy-permissions-and-onsite-support.md](references/policy-permissions-and-onsite-support.md) |
 | Cross-module ASIN diagnosis, saved actions or follow-up experiment review | [诊断与行动复盘](../xander-operations/references/diagnostic-action-review.md); reuse this skill's original evidence, economics and strategy IDs, not a replacement strategy schema |
 | Structured package/schema, lineage or readiness claim | [input-and-output-contract.md](references/input-and-output-contract.md) |
-| Complete plan/change package or authorized execution | [full-strategy-workflow.md](references/full-strategy-workflow.md), with applicable dependencies above |
+| Complete structured plan/change package, or execution of its approved manifest | [full-strategy-workflow.md](references/full-strategy-workflow.md), with applicable dependencies above |
 
-For standalone `ECONOMICS_ONLY`, read only the calculation reference plus context/policy only if they affect that calculation; a serialized strategy-contract economics package also needs the input/output contract. A narrow `AUDIT` or `REFRESH` loads its question-specific evidence modules. Full `PLAN`, full-plan `REFRESH`, `PREPARE_CHANGES` and `EXECUTE` require applicable economics, context, policy, schema and selected-product checks. Incomplete packages cannot claim ready.
+For standalone `ECONOMICS_ONLY`, read only the calculation reference plus context/policy only if they affect that calculation; a serialized strategy-contract economics package also needs the input/output contract. A narrow `AUDIT` or `REFRESH` loads its question-specific evidence modules. Full `PLAN`, full-plan `REFRESH`, and serialized strategy/change packages use the full workflow and its applicable dependencies. Incomplete packages cannot claim ready.
+
+An exact supported scalar change follows the existing prepare/approval/execute/readback contract plus the evidence relevant to that action. It does not require a full architecture, five-phase strategy or unrelated Vine/review-support package. Bid/budget increases still need supported economics, effective bid exposure and applicable stock/cash limits; reducing exposure does not require inventing missing profitability. Do not claim full-package validation for this narrow route or use it to bypass the execution handler's checks.
 
 Placement/competitor cross-diagnosis is a narrow Ads review: reuse dated keyword rank/SERP and competitor offer/page evidence where available, and request only missing relevant evidence. Their research roles and lists remain unchanged. Align source scopes; do not invent a query × placement × competitor attribution table. A complete existing-product review must pass the placement completeness gate in its product-mode reference; otherwise label it partial.
 
@@ -84,4 +87,4 @@ Read SP, SB and SD separately and keep per-product coverage and enabled/paused/a
 
 ## 收尾
 
-执行过的改动、按样本积累/归因回填/报表可得时间确定的最早复盘时点与回退条件，用 `xander_archive_note` 简记；需要关联诊断与动作的追加式复盘时，按 [诊断与行动复盘](../xander-operations/references/diagnostic-action-review.md) 使用本地账本，分开记录平台回读和描述式经营结果，不因经过固定天数就宣称效果已验证。日期记录不会创建监控；恢复原值仍需新的当前精确审批。新确认的成本或利润底线用 `xander_archive_set_fact` 记下，规则见 [店铺档案](../xander-operations/references/business-context.md)。
+执行过的改动、按样本积累/归因回填/报表可得时间确定的最早复盘时点与回退条件，用 `xander_archive_note` 简记。用户手动改价、改图、改广告也记录其明示理由、取舍、时间、实际证据及后续结果；未知理由不编造，不补成工具执行回执。需要关联诊断与动作的追加式复盘时，按 [诊断与行动复盘](../xander-operations/references/diagnostic-action-review.md) 使用本地账本，分开记录平台回读和描述式经营结果，不因经过固定天数就宣称效果已验证。日期记录不会创建监控；恢复原值仍需新的当前精确审批。新确认的成本或利润底线用 `xander_archive_set_fact` 记下，规则见 [店铺档案](../xander-operations/references/business-context.md)。

@@ -380,6 +380,112 @@ test('逐动作核验样本对象，B活动100点击10单不能为A活动2点击
   assert.equal(getGate(ownSmallSample, 'sample_attribution', 'scale-a').status, 'unmet');
 });
 
+
+function perActionSamples() {
+  const i = input();
+  delete i.sampleCheck;
+  i.evidence = [];
+  i.actions = ['a', 'b'].map((suffix) => {
+    const object = { type: 'campaign', id: `campaign-${suffix}` };
+    const report = { ...evidence(`sample-${suffix}`), object };
+    const policy = { ...evidence(`policy-${suffix}`), object };
+    i.evidence.push(report, policy);
+    const candidate = action(`scale-${suffix}`);
+    candidate.object = object;
+    candidate.gates.forEach((g) => { g.evidenceIds = [report.id]; });
+    candidate.sampleCheck = { evidenceId: report.id, policy: {
+      basis: `合成${suffix}活动规则，非固定行业阈值`, evidenceIds: [policy.id], minClicks: 80, minOrders: 5,
+    } };
+    return candidate;
+  });
+  return i;
+}
+
+test('同一SKU的多个动作各用独立样本和阈值，不要求根级sampleCheck', () => {
+  const i = perActionSamples();
+  const before = structuredClone(i);
+  const result = evaluateDiagnostic(i);
+  assert.deepEqual(result.recommendations.map((a) => a.id), ['scale-a', 'scale-b']);
+  assert.equal(result.sampleCheck.status, 'unknown', '根级摘要不冒充所有动作的样本结论');
+  for (const suffix of ['a', 'b']) {
+    const id = `scale-${suffix}`;
+    assert.equal(getGate(result, 'sample_attribution', id).status, 'satisfied');
+    assert.deepEqual(getGate(result, 'data_ownership', id).evidenceIds, [`sample-${suffix}`, `policy-${suffix}`]);
+    assert.equal(evaluated(result, id).sampleCheck.status, 'satisfied');
+  }
+  assert.deepEqual(i, before);
+  i.actions.reverse();
+  assert.deepEqual(evaluateDiagnostic(i).recommendations.map((a) => a.id).sort(), ['scale-a', 'scale-b']);
+});
+
+test('动作级sampleCheck优先，未提供的动作仍兼容根级fallback', () => {
+  const i = perActionSamples();
+  i.sampleCheck = structuredClone(i.actions[1].sampleCheck);
+  delete i.actions[1].sampleCheck;
+  const result = evaluateDiagnostic(i);
+  assert.deepEqual(result.recommendations.map((a) => a.id), ['scale-a', 'scale-b']);
+  assert.equal(result.sampleCheck.status, 'satisfied');
+  assert.deepEqual(evaluated(result, 'scale-a').sampleCheck.evidenceIds, ['sample-a', 'policy-a']);
+  assert.deepEqual(evaluated(result, 'scale-b').sampleCheck.evidenceIds, ['sample-b', 'policy-b']);
+});
+
+test('动作级样本不足、依据缺失、未成熟时不退回根级好样本，也不污染兄弟动作', () => {
+  for (const mutate of [
+    (i) => { i.evidence[0].metrics = { clicks: 2, orders: 1 }; },
+    (i) => { delete i.actions[0].sampleCheck.policy; },
+    (i) => { i.evidence[0].attribution = 'immature'; },
+    (i) => { i.actions[0].sampleCheck.evidenceId = 'missing-report'; },
+  ]) {
+    const i = perActionSamples();
+    i.sampleCheck = structuredClone(i.actions[1].sampleCheck);
+    mutate(i);
+    const result = evaluateDiagnostic(i);
+    assert.equal(result.sampleCheck.status, 'satisfied');
+    assert.notEqual(getGate(result, 'sample_attribution', 'scale-a').status, 'satisfied');
+    assert.equal(getGate(result, 'sample_attribution', 'scale-b').status, 'satisfied');
+    assert.deepEqual(result.recommendations.map((a) => a.id), ['scale-b']);
+  }
+});
+
+test('动作级样本和阈值也不能借用另一个活动的证据', () => {
+  for (const mutate of [
+    (i) => { i.actions[0].sampleCheck = structuredClone(i.actions[1].sampleCheck); },
+    (i) => { i.actions[0].sampleCheck.policy.evidenceIds = ['policy-b']; },
+  ]) {
+    const i = perActionSamples(); mutate(i);
+    const result = evaluateDiagnostic(i);
+    assert.equal(getGate(result, 'sample_attribution', 'scale-a').status, 'unknown');
+    assert.equal(getGate(result, 'data_ownership', 'scale-a').status, 'unknown');
+    assert.deepEqual(result.recommendations.map((a) => a.id), ['scale-b']);
+  }
+});
+
+test('动作级覆盖不会将无关根样本加入本动作归属和质量门禁', () => {
+  const i = perActionSamples();
+  i.sampleCheck = { evidenceId: 'missing-root-report' };
+  const result = evaluateDiagnostic(i);
+  assert.equal(result.sampleCheck.status, 'unknown');
+  assert.deepEqual(result.recommendations.map((a) => a.id), ['scale-a', 'scale-b']);
+  for (const candidate of result.recommendations) {
+    assert.ok(!candidate.gates.flatMap((g) => g.evidenceIds).includes('missing-root-report'));
+  }
+});
+
+test('动作级sampleCheck沿用严格结构和深冻结schema', () => {
+  for (const mutate of [
+    (i) => { i.actions[0].sampleCheck.policy.minClicks = 0; },
+    (i) => { i.actions[0].sampleCheck.policy.minOrders = '5'; },
+    (i) => { i.actions[0].sampleCheck.extra = true; },
+    (i) => { i.actions[0].sampleCheck = null; },
+  ]) {
+    const i = perActionSamples(); mutate(i);
+    assert.throws(() => evaluateDiagnostic(i), /sampleCheck/);
+  }
+  assert.throws(() => {
+    DIAGNOSTIC_SCHEMA.properties.actions.items.properties.sampleCheck.required.push('arbitrary');
+  }, TypeError);
+});
+
 test('SKU或ASIN可使用同scope样本，但阈值引用跨具体对象不可为活动放行', () => {
   for (const type of ['sku', 'asin']) {
     const i = input(); i.actions[0].object = { type, id: i.scope[type] };

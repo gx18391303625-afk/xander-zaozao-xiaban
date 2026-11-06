@@ -1,0 +1,145 @@
+{
+  "scope": {
+    "store": "DEMO",
+    "marketplace": "US",
+    "currency": "USD",
+    "timezone": "America/Los_Angeles",
+    "entityType": "campaign"
+  },
+  "evidenceKind": "simulation",
+  "rows": [
+    {
+      "id": "SP-DEMO-CONVERSION",
+      "objective": "sales",
+      "current": {
+        "source": "SIMULATED report; not live data",
+        "startDate": "2026-10-15",
+        "endDate": "2026-10-21",
+        "coverage": "complete",
+        "attributionMature": true,
+        "basis": {
+          "adProduct": "SP",
+          "chargeType": "CPC",
+          "interaction": "CLICK",
+          "salesScope": "PROMOTED",
+          "attributionWindow": "7-day-click"
+        },
+        "metrics": {
+          "impressions": 10000,
+          "clicks": 100,
+          "orders": 10,
+          "spend": 100,
+          "sales": 200
+        }
+      },
+      "baseline": {
+        "source": "SIMULATED report; not live data",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-07",
+        "coverage": "complete",
+        "attributionMature": true,
+        "basis": {
+          "adProduct": "SP",
+          "chargeType": "CPC",
+          "interaction": "CLICK",
+          "salesScope": "PROMOTED",
+          "attributionWindow": "7-day-click"
+        },
+        "metrics": {
+          "impressions": 10000,
+          "clicks": 100,
+          "orders": 20,
+          "spend": 100,
+          "sales": 600
+        }
+      },
+      "economics": {
+        "source": "SIMULATED matching attributed sales contribution total",
+        "quality": "verified",
+        "contributionBeforeAds": 90,
+        "profitFloor": 20
+      },
+      "inventory": {
+        "source": "SIMULATED stock and total sales",
+        "availableUnits": 400,
+        "dailyUnitDemand": 20,
+        "replenishmentDays": 7,
+        "sellingDaysRemaining": 60
+      },
+      "changes": [
+        "Price and main image changed during comparison; no isolated causal claim"
+      ]
+    },
+    {
+      "id": "SP-DEMO-STOCK",
+      "objective": "sales",
+      "current": {
+        "source": "SIMULATED report; not live data",
+        "startDate": "2026-10-15",
+        "endDate": "2026-10-21",
+        "coverage": "complete",
+        "attributionMature": true,
+        "basis": {
+          "adProduct": "SP",
+          "chargeType": "CPC",
+          "interaction": "CLICK",
+          "salesScope": "PROMOTED",
+          "attributionWindow": "7-day-click"
+        },
+        "metrics": {
+          "impressions": 10000,
+          "clicks": 100,
+          "orders": 10,
+          "spend": 30,
+          "sales": 300
+        }
+      },
+      "economics": {
+        "source": "SIMULATED matching attributed sales contribution total",
+        "quality": "verified",
+        "contributionBeforeAds": 120,
+        "profitFloor": 50
+      },
+      "inventory": {
+        "source": "SIMULATED stock and total sales",
+        "availableUnits": 10,
+        "dailyUnitDemand": 5,
+        "replenishmentDays": 14,
+        "sellingDaysRemaining": 30
+      },
+      "budget": {
+        "source": "SIMULATED budget constraint evidence",
+        "limited": true
+      }
+    },
+    {
+      "id": "SB-DEMO-AWARENESS",
+      "objective": "awareness",
+      "current": {
+        "source": "SIMULATED report; not live data",
+        "startDate": "2026-10-15",
+        "endDate": "2026-10-21",
+        "coverage": "complete",
+        "attributionMature": true,
+        "basis": {
+          "adProduct": "SB",
+          "chargeType": "VCPM",
+          "interaction": "VIEW",
+          "salesScope": "COMBINED",
+          "attributionWindow": "example-view-window; verify actual report"
+        },
+        "metrics": {
+          "impressions": 10000,
+          "clicks": 100,
+          "orders": 0,
+          "spend": 50,
+          "sales": 0
+        }
+      },
+      "budget": {
+        "source": "SIMULATED budget constraint evidence",
+        "limited": true
+      }
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.6.0 — 2026-11-06
+
+- 新增只读 `xander_review_ad_performance`：重算同口径报表指标，分解成熟点击归因窗口的 ACoS 变化，结合匹配贡献、利润底线、库存和销售窗口生成具体复核待办。输入来源仍由运营模块核实；工具不宣称因果、盈利增量或执行授权。
+- 零/未知、未成熟归因、混合广告产品及观看归因分开处理；单行花费/零售销售额不冒充全广告 TACoS。清货日销仅作为明确零期末库存假设的情景。
+- 修复经营诊断只能绑定一份样本的问题：每动作可有独立 `sampleCheck`，保留旧根级输入兼容，拒绝跨对象借用样本。
+- 广告技能增加证据到具体行动的短路径，区分经营原因与广告原因、实际 CPC 与基础竞价、实验单位与共享详情页污染。精确标量变更不再强制完整策略包，仍沿现有审批和回读合同。
+- 验证使用合成场景和隔离测试；不代表真实投放收益已改善。未修改广告写入开关、Amazon 账户或云端独立服务。
+
 ## 2.5.6 — 2026-11-05
 
 - Fix approved proposals failing integrity after a save/load round trip. `canonical()` renders `undefined` as `null` while `JSON.stringify` drops the key, so any item holding `undefined` (e.g. ziniao step fields `url`/`selector`/`text`) hashed differently once reloaded; every `ziniao.control` proposal was rejected with "提案内容完整性/哈希校验失败". The hash is now taken over the exact persisted JSON form.

@@ -17,7 +17,7 @@ A precise optimization plan requires source-qualified first-party data appropria
 - current fees, unit economics, returns/losses, and cash/inventory constraints.
 - compatible Brand Analytics Search Query Performance and Search Terms periods when the review assesses keyword ownership or link-promotion maturity.
 
-If only screenshots or unsourced totals exist, produce a limited audit and request exports. Do not fabricate target-level optimization.
+If only screenshots or unsourced totals exist, produce a limited audit and use available read-only tools to retrieve the necessary reports. Ask the user for only the key missing material when it cannot be obtained through those tools. Do not fabricate target-level optimization.
 
 For `PLAN_READY`, every binding performance snapshot and its referenced `amazon_ads_report`/`amazon_ads_api_snapshot` artifact must be `FIRST_PARTY`, exact-account/marketplace/currency/ASIN-or-SKU scoped, captured/generated within the validator's 24-hour safety window, attribution-complete, and contain impressions, clicks, orders, spend, and attributed sales. Declare `economics.performance_basis` with the exact ad-product set, charge type, interaction scope, sales scope, canonical entity scope (`campaign | ad_group | target | search_term | placement | advertised_product`), and attribution window. The exact attribution-window label appears in both cited report/API metadata and a current official attribution-policy artifact. Every cited row and every decision-rule source must match that basis and the campaign architecture's exact ad-product set. The bundled actual CPC/CVR calculator supports only `CPC + CLICK + PROMOTED`; incompatible diagnostics or bases require a separate provisional package or auditable normalization/model. The calculator's advertising actuals reconcile to cited Ads snapshots. Optional total-sales and contribution actuals separately reconcile to an exact-period Amazon Business Report and one auditable normalization value per contribution field. That normalization declares a formula and unique derived source IDs; attributed contribution must include the binding Ads source, total contribution must include the reconciled Business Report, and both require exact-period current product-cost evidence matching marketplace, currency, account, ASIN/SKU, window, data-through date, class, and freshness. Otherwise those fields and their TACoS/contribution ratios remain null without blocking the rest of an evidence-complete ad plan.
 
@@ -176,7 +176,7 @@ Search-term decisions require query-level first-party evidence and context.
 
 Anchor bids to the current economics model and observed CVR. Amazon suggestions are delivery estimates, not profit ceilings.
 
-- If the target-profit CPC is available, use it as the normal ceiling.
+- Use target-profit CPC as the economic allowance per click. A conservative bid ceiling may be derived from it, but it is not automatically the base-bid value: distinguish average paid CPC, the object's effective base bid, and placement/audience/dynamic adjustments. Do not infer an optimal bid from an accounting identity alone.
 - If only the operating break-even CPC is available, expose the missing profit buffer.
 - If a proposal exceeds break-even, require a user-approved learning-loss envelope.
 - Separate daily budget, phase spend cap, total strategy cap, and cash reserve.
@@ -185,6 +185,8 @@ Anchor bids to the current economics model and observed CVR. Amazon suggestions 
 - Compare placement results only under compatible attribution and event context.
 - For joint placement/rank/competitor questions, apply [placement-and-competitor-cross-diagnosis.md](placement-and-competitor-cross-diagnosis.md). Preserve native dimensions; same-campaign placement and query/target reports do not establish their joint distribution. Use genuine native joint reports only at their supported grain.
 - Treat `HIGH` or `UNKNOWN` stockout risk as not traffic-ready; do not release positive exposure merely because historical ads were profitable.
+
+For the calculation-to-decision sequence, SP campaign/ad-group boundaries and controlled creative tests, use [performance-diagnosis.md](performance-diagnosis.md). Preserve this reference's full-package requirements only when that output is requested.
 
 ### Placement completeness gate for a comprehensive review
 

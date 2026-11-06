@@ -24,6 +24,7 @@ import { isOn } from '../lib/switches.js';
 import { accessToken } from '../lib/lwa.js';
 import { marketplaceById, marketplace as mpOf } from '../lib/regions.js';
 import { buildDecisionTools } from './decision-tools.js';
+import { AD_PERFORMANCE_SCHEMA, reviewAdPerformance } from '../lib/ad-performance.js';
 
 const MAX_INLINE = 60_000;
 
@@ -228,6 +229,12 @@ export function buildTools(version) {
     },
 
     // ---------------- 经营诊断 / 行动与实验复盘（仅本地） ----------------
+    {
+      name: 'xander_review_ad_performance',
+      description: '只读重算所供广告报表，拆解可比成熟窗口的ACoS变化（CPC/CVR/客单价），结合匹配贡献、利润底线、库存销售窗口及预算受限证据生成具体人工复核待办。输入由AI从报表整理，同一店站币种及实体粒度，每对象一行；不平均比率、不合并SP/SB/SD排名、不将零订单自动否词。经济/零售/库存数据须属于该行对象与当前窗口；contributionBeforeAds为该行归因销售对应的广告前贡献总额，非单件值或全店利润。未知数字传null/省略，模拟标simulation。工具不独立认证来源、不会联网取数、写店铺、生成精确竞价或批准行动。完整schema见输入；技能有最小示例。',
+      inputSchema: AD_PERFORMANCE_SCHEMA, annotations: LOCAL_READ,
+      async handler(a) { return out(reviewAdPerformance(a), 'ad-performance'); },
+    },
     ...buildDecisionTools(),
 
     // ---------------- 档案库（本地） ----------------
