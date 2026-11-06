@@ -1,5 +1,12 @@
 # 更新记录
 
+## 2.7.0 — 2026-11-06
+
+- 新增 DSH 专属「亚马逊运营」agent 预设（行 id `preset-amazon`，预设 id `amazon`，界面显示「亚马逊运营」）。persona 里写死三件事：新会话第一个动作调用 `xander_status`；任何亚马逊话题——即使完全没提 Xander——先加载 `xander-operations` 技能、再按它的路由表加载模块技能、最后用 `xander_*` 取真实数据作答；改后台只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读。
+- 预设的插件条目与 shipped `preset-standard` 同名同序（21 条），所以选它不减少任何能力：subagent、subagent_fork、workflow、计划模式、goal、todo、schedule、web、plugin_manager 全在，差别只有 persona。
+- 只新增一条预设声明：不挂载第二份 Xander Host 实例，不改工具、写入开关、审批方式、档案或已存提案；默认预设仍是 `standard`，是否选它由用户决定。已有会话不会切换预设，需新开会话才生效。
+- 验证范围：DSH 回归测试通过；预设 YAML 结构与 `preset-standard` 的条目逐项对照已核对，`preset-amazon` 在 Desktop profile 中为 active。未在真实会话中验证触发效果，未改动任何 Amazon 账户。
+
 ## 2.6.0 — 2026-11-06
 
 - 新增只读 `xander_review_ad_performance`：重算同口径报表指标，分解成熟点击归因窗口的 ACoS 变化，结合匹配贡献、利润底线、库存和销售窗口生成具体复核待办。输入来源仍由运营模块核实；工具不宣称因果、盈利增量或执行授权。

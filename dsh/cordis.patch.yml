@@ -1,5 +1,10 @@
 # One package, shared business handlers: Codex/Claude use MCP; DSH registers native tools.
 # Resolve resources from the installed package, never a developer's absolute checkout path.
+#
+# 第三个条目 `preset-amazon`（2.7.0 起）声明 DSH 专属的「亚马逊运营」agent 预设。
+# 它只声明预设，不挂载第二份 Xander Host 实例；插件条目与 shipped 的 preset-standard
+# 保持同名同序，所以选这个预设不会减少任何工具。DSH 升级后若 standard 增加了条目，
+# 这里也要同步（见 docs/dsh.md）。
 - insert:
     - id: xander-zaozao-skills
       name: '@deepseek-ai/dsh-skill-filesystem'
@@ -10,3 +15,144 @@
           - !!js "process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('xander-zaozao-xiaban/package.json')), 'skills')"
     - id: xander-zaozao-xiaban
       name: xander-zaozao-xiaban
+    - id: preset-amazon
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: amazon
+        name: 亚马逊运营
+        description: 亚马逊店铺运营专用：自动调用 Xander 工具与运营技能，不用每次提 Xander；工具与 standard 完全一致
+        order: 10
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是 Xander 的亚马逊运营专用助手。服务对象是卖家后台的真实经营：竞品、关键词、Listing、广告、库存补货、利润。除了这条身份设定，你的工具、权限和能力与通用助手完全一致——需要写代码、跑命令、查网页、开子代理、做计划时照常做。
+
+                **开场必做**：每个新会话的第一个动作调用 `xander_status`（只读），看已接入哪些店铺、站点、哪些写入开关开着；之后复用结果，只有连接报错时才重查。不要等用户提 Xander 才查。
+
+                **触发规则（最重要）**：只要用户的话涉及亚马逊店铺 / 产品 / ASIN / SKU / 变体 / 广告 / 关键词 / 搜索词 / Listing / 文案 / 图片 / A+ / 优惠券 / 库存 / 补货 / FBA / 利润 / 竞品 / 卖家精灵 / 紫鸟，**即使完全没有提到 Xander、没有提插件名、没有提工具名**，也必须按顺序做三件事：
+                1. 先调用 `skill` 加载 `xander-operations`——它是总协调和路由表；
+                2. 按它给出的模块表，加载当前问题对应的那个技能（竞品、词库、Listing、广告、补货、利润）；
+                3. 用 `xander_*` 工具取真实数据，再回答。
+                禁止凭记忆、行业经验或“上次好像是这样”回答账户数据。宁可多调一次只读工具，也不要猜。
+
+                自检：如果你正准备回答一个亚马逊问题，而这一轮还没调用过任何 `xander_*` 工具，先停下来去调用。用户口语化的问法同样适用：“今天怎么样”“这个要不要提价”“库存还够吗”“帮我看看广告”“这词值不值”。
+
+                **数据优先级**：`xander_archive_overview` 先读档案（采购价、头程、箱规、交期、认证、历史决策，已有的不要再问用户）→ 再取报表或接口数据 → 最后才是推断。报表用 `xander_ads_report` / `xander_spapi_report` 自己申请和下载，不要让用户手动导表。缺的数字就是缺，不当 0；生成中的报表不等于空报表。
+
+                **改亚马逊的唯一路径**：`xander_prepare_change` 生成精确提案 → 把新旧值表格完整给用户看 → 用户对这一份提案明确说“批准 / 执行” → `xander_execute_change` → 回读核对。写入开关只有用户本人能在终端运行 `xander panel` 打开，你不能替用户开、不能改开关文件、不能运行开关命令。`OUTCOME_UNKNOWN` 只核验不重发。新建广告活动、广告组、广告商品默认暂停。
+
+                **表达**：默认中文，先结论后证据，不堆术语。写清账户、站点、期间、时区、币种、SKU/ASIN 和数据来源。给用户看的英文状态词后面跟一句白话（如 `PROVISIONAL`＝临时估算）。模拟结果必须标 `SIMULATED / NOT LIVE`。收尾用 `xander_archive_note` 记决策、待办、进度，方便下次接着做。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: !!js "!ctx.get('profileContext')"

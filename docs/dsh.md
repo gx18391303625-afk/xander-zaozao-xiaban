@@ -15,6 +15,7 @@
 | 挂载位置 | 只挂载一份全局 Host 插件；不要在多个 Agent 预设重复挂载。重复实例会明确拒绝，避免一个实例卸载时关闭另一个实例使用的数据库 |
 | 技能 | 官方 filesystem provider 从包内注册 7 个技能；不复制到 `~/.dsh/skills`，参考资料与脚本也留在包内 |
 | 页面 | 不增加 DSH 专属业务页面；原有 `xander panel` 仍是独立的本机安全面板 |
+| 预设 | 包内声明一个可选的「亚马逊运营」agent 预设 `preset-amazon`（2.7.0 起）。工具条目与 shipped `preset-standard` 同名同序，只在 persona 里写死“开场查 `xander_status`、沾亚马逊话题先加载 `xander-operations`”。默认预设不变，安装不会替你切换 |
 
 凭证、配置、档案保存在本地；授权与业务请求会访问用户所选的接口，进入对话的业务数据也会按 DSH 所选模型传输。启用可选云备份时，加密档案会传到用户自己的 S3。**不能将“本地插件”理解为“所有数据绝不离开电脑”。**
 
@@ -54,6 +55,22 @@ dsh plugin --profile <profile> add <目录/来源>
 ```
 
 本地目录应使用绝对路径并按终端规则加引号；GitHub 来源应固定到可获取的 tag 或 commit。Desktop 用户不要用这条命令代替正在运行的 Desktop 插件管理器，也不要用包管理器手工改其 profile。
+
+### 亚马逊运营预设（2.7.0 起）
+
+插件装好后，**新建**会话的预设（agent）选择里会多一个「亚马逊运营」。已有会话不会自动切换预设，这一点与 DSH 的预设机制一致，需要新开会话才生效。
+
+它解决的是触发问题：Xander 在宿主层只注册工具和一段很轻的系统提示，如果会话 persona 仍是通用助手，不点名 Xander 时很容易被当成普通编码任务而完全不查店铺。这个预设的 persona 写死了三件事——
+
+1. 新会话第一个动作调用 `xander_status`（只读），先看已接入的店铺、站点和写入开关状态；
+2. 只要话题沾亚马逊（店铺、ASIN/SKU、广告、关键词、Listing、图片、A+、优惠券、库存、补货、FBA、利润、竞品），**即使没提 Xander**，也先加载 `xander-operations` 技能，再按它的路由表加载模块技能，最后用 `xander_*` 取真实数据作答；
+3. 改亚马逊只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读；写入开关仍只能由用户在 `xander panel` 打开。
+
+**它不减少任何能力**：预设的 21 个插件条目与 shipped `preset-standard` 同名同序，subagent、subagent_fork、workflow、计划模式、goal、todo、schedule、web、plugin_manager 都在，唯一差别是 persona。预设只声明，不挂载第二份 Xander Host 实例，不改工具、开关、审批方式、档案或已存提案。
+
+如果只是拿 DSH 做通用开发、不希望每个会话都先查店铺，继续用 `standard` 即可；想默认就用它，在会话界面选定预设即可（默认预设在 profile 的 `agent-preset-registry` 里，不由插件改写）。
+
+**升级提示：** 这份预设的条目是照 DSH 自带的 `preset-standard` 抄的。DSH 升级后若 `standard` 增加了新插件条目，[cordis.patch.yml](<../dsh/cordis.patch.yml>) 也要同步补上，否则新能力只会出现在 `standard`、不出现在「亚马逊运营」里。
 
 ## 3. 安装后的最小只读验收
 
