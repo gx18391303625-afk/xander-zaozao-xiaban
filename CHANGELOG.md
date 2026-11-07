@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 记忆升级：`xander_archive_overview` 一次返回事实、未完成待办、最近决策（含已完成）、本店最近真正执行过的改动（原值→新值和理由，来自提案记录）、实验卡与到期待复盘提醒；支持只传 ASIN（按档案登记反查 SKU）。总协调技能要求开工前先说明“上次做到哪了”。
+- `xander_change_log` 支持按店铺过滤。
 - 修复失败/取消的报表在 12 小时内被同参数请求反复复用：卖家报表 `FATAL`/`CANCELLED`、广告报表 `FAILED` 在 collect 时会从复用索引中移除。`xander_spapi_report` 与 `xander_ads_report` 新增 `fresh=true`，刚改完竞价/价格或需要当前快照时可跳过复用。
 - 修复广告 v1 报表在读不到账户站点映射时把所有行当“未知站点”丢掉、返回看似 0 行的结果；现在直接报错并提示用同一 reportId 重新 collect。
 - 卖家报表按文件内容判断 JSON/TSV，`GET_SALES_AND_TRAFFIC_REPORT` 等不再被存成 `.tsv`。

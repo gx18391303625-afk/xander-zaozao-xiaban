@@ -14,7 +14,8 @@ import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
 import * as calc from '../lib/calc.js';
 import { listSwitches } from '../lib/switches.js';
-import { prepareChange, executeChange, verifyChange, reconcileAccountBudgetRollback, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
+import { prepareChange, executeChange, verifyChange, reconcileAccountBudgetRollback, listProposals, changeLog, recordPromotionReceipt, recentChanges } from '../lib/proposals.js';
+import { listExperiments } from '../lib/decision-journal.js';
 import { readPromotions } from '../lib/promotions.js';
 import { getListingImageRequirements, listAplusDocuments, validateAplusContent, getAplusStatus } from '../lib/ops-content.js';
 import { ACCOUNT_BUDGET_OP } from '../lib/ops-ads-account-budget.js';
@@ -242,12 +243,46 @@ export function buildTools(version) {
     // ---------------- 档案库（本地） ----------------
     {
       name: 'xander_archive_overview',
-      description: '读取店铺档案：不传 sku 看店铺级事实和产品清单；传 sku 看该产品当前有效的成本/箱规/交期等事实和未完成待办。做利润、补货、广告经济前先读这里，已有的信息不要再问用户。',
-      inputSchema: S({ store, sku: str('可选') }),
+      description: '读取店铺记忆（一次拿全）：店铺/产品当前有效的成本、箱规、交期等事实，未完成待办，最近的决策（含已完成），最近真正执行过的改动（来自提案记录，含原值→新值和理由），以及本地实验卡与到期待复盘项。不传 sku/asin 看全店；传 sku 或 asin 看单品（asin 会按档案登记反查 SKU）。做利润、补货、广告、Listing 前先读这里：已有的不要再问用户，上次的决策和改动要接着用。',
+      inputSchema: S({ store, sku: str('可选'), asin: str('可选；没有 SKU 时用 ASIN 查') }),
       annotations: LOCAL_READ,
-      async handler({ store: alias, sku }) {
+      async handler({ store: alias, sku, asin }) {
         const s = getStore(alias);
-        return out({ ...archive.overview(s.alias, sku || null), standardFields: sku ? undefined : archive.STANDARD_FIELDS });
+        let target = sku || null;
+        const gaps = [];
+        if (!target && asin) {
+          const skus = archive.skusForAsin(s.alias, asin);
+          if (skus.length === 1) target = skus[0];
+          else if (skus.length > 1) return out({ store: s.alias, asin, candidates: skus, note: `ASIN ${asin} 在档案里对应多个 SKU，请指定其中一个 sku 再查。` });
+          else gaps.push(`档案里还没有登记 ASIN ${asin} 对应的 SKU；可用 xander_archive_product 登记后再查单品事实。`);
+        }
+        const base = archive.overview(s.alias, target);
+        const experiments = [];
+        const today = new Date().toISOString().slice(0, 10);
+        for (const marketplace of s.marketplaces || []) {
+          try {
+            for (const e of listExperiments({ store: s.alias, marketplace, ...(target ? { sku: target } : {}), ...(!target && asin ? { asin } : {}), limit: 10 })) {
+              const last = e.latestReview;
+              experiments.push({ id: e.id, marketplace, sku: e.scope?.sku ?? null, asin: e.scope?.asin ?? null, actionId: e.actionId,
+                hypothesis: e.hypothesis, primaryVariable: e.primaryVariable, earliestReviewDate: e.earliestReviewDate, proposalId: e.proposalId ?? null,
+                reviewCount: e.reviewCount, latestReview: last ? { createdAt: last.createdAt, status: last.status, decision: last.decision ?? null } : null,
+                dueForReview: e.earliestReviewDate <= today && (!last || last.decision === 'continue_observing') });
+            }
+          } catch (err) { gaps.push(`${marketplace} 站实验卡读取失败：${err.message}`); }
+        }
+        return out({
+          ...base,
+          ...(asin ? { asin } : {}),
+          recentChanges: recentChanges(s.alias, { sku: target, asin: asin || base.product?.asin, limit: 10 }),
+          experiments,
+          ...(experiments.some((e) => e.dueForReview) ? { reminder: '有实验卡已到最早复盘日期且还没有结论：先问用户要不要现在复盘（取同口径新数据，用 xander_experiment_review 记录），不要自动改账户。' } : {}),
+          memoryNotes: [
+            'recentChanges 来自本机提案记录，只说明当时提交和回读状态；当前值以接口重新读取为准。广告对象通常无法直接对应到某个 SKU，aboutThisProduct=false 不代表与该产品无关。',
+            'dueForReview 按 UTC 日期粗算，只是提醒，不是已安排的监控。',
+            ...gaps,
+          ],
+          standardFields: target ? undefined : archive.STANDARD_FIELDS,
+        });
       },
     },
     {
@@ -422,10 +457,17 @@ export function buildTools(version) {
     },
     {
       name: 'xander_change_log',
-      description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。',
-      inputSchema: S({ limit: num('条数，默认 50') }),
+      description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。传 store 只看该店铺；只想知道“最近真正改过什么”时优先用 xander_archive_overview 的 recentChanges。',
+      inputSchema: S({ store: str('可选：只看这个店铺'), limit: num('条数，默认 50') }),
       annotations: LOCAL_READ,
-      async handler({ limit = 50 }) { return out({ proposals: listProposals(20), ledger: changeLog(limit) }); },
+      async handler({ store: alias, limit = 50 }) {
+        if (!alias) return out({ proposals: listProposals(20), ledger: changeLog(limit) });
+        const s = getStore(alias);
+        const mine = listProposals(Infinity).filter((x) => x.store === s.alias);
+        const ids = new Set(mine.map((x) => x.id));
+        const ledger = changeLog(Infinity).filter((e) => e.store === s.alias || ids.has(e.proposalId)).slice(-limit);
+        return out({ store: s.alias, proposals: mine.slice(0, 20), ledger });
+      },
     },
 
     // ---------------- 紫鸟（实验） ----------------
