@@ -11,7 +11,7 @@
 | 单个 SKU 的 Listing | `xander_listing_get` |
 | 卖家报表 | `xander_spapi_report` action=request → 记下 reportId → action=collect |
 | 广告对象列表 | `xander_ads_list`（SP/SB 走 Ads API v1 统一接口，SD 暂用原接口；自动翻页，返回 complete 标记） |
-| 广告报表 | `xander_ads_report` action=request（v1 的 preset 或 fields；搜索词/投放/推广商品暂用 v3）→ action=collect |
+| 广告报表 | `xander_ads_report` action=request（v1 的 preset 或 fields；搜索词/投放/推广商品暂用 v3；刚改完或窗口含今天用 fresh=true）→ action=collect → `xander_ads_report_rows` 按对象和窗口汇总（缺失保持 null，口径随行标明） |
 | 档案（成本、箱规、交期、决策） | `xander_archive_overview` / `xander_archive_history` |
 | 快速计算 | `xander_calc_ad_economics` / `xander_calc_replenishment` / `xander_calc_profit` |
 

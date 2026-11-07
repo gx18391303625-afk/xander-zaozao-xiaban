@@ -14,7 +14,8 @@ import { checkSpapiPath, checkReportType } from '../lib/deprecations.js';
 import * as archive from '../lib/archive.js';
 import * as calc from '../lib/calc.js';
 import { listSwitches } from '../lib/switches.js';
-import { prepareChange, executeChange, verifyChange, reconcileAccountBudgetRollback, listProposals, changeLog, recordPromotionReceipt } from '../lib/proposals.js';
+import { prepareChange, executeChange, verifyChange, reconcileAccountBudgetRollback, listProposals, changeLog, recordPromotionReceipt, recentChanges } from '../lib/proposals.js';
+import { listExperiments } from '../lib/decision-journal.js';
 import { readPromotions } from '../lib/promotions.js';
 import { getListingImageRequirements, listAplusDocuments, validateAplusContent, getAplusStatus } from '../lib/ops-content.js';
 import { ACCOUNT_BUDGET_OP } from '../lib/ops-ads-account-budget.js';
@@ -25,6 +26,7 @@ import { accessToken } from '../lib/lwa.js';
 import { marketplaceById, marketplace as mpOf } from '../lib/regions.js';
 import { buildDecisionTools } from './decision-tools.js';
 import { AD_PERFORMANCE_SCHEMA, reviewAdPerformance } from '../lib/ad-performance.js';
+import { adReportRows } from '../lib/ad-report-rows.js';
 
 const MAX_INLINE = 60_000;
 
@@ -159,13 +161,14 @@ export function buildTools(version) {
         dataStartTime: str('ISO 时间，如 2026-10-01T00:00:00Z'), dataEndTime: str('ISO 时间'),
         reportOptions: { type: 'object', additionalProperties: true, description: '报表选项（如 SQP 的 reportPeriod、asin）' },
         reportId: str('collect 时必填'),
+        fresh: bool('true=不复用 12 小时内的旧报表，重新申请（刚改完价格/库存、或需要当前快照时用）'),
       }, ['action']),
       annotations: READ,
-      async handler(a) {
+      async handler({ fresh, ...a }) {
         if (a.action === 'request') {
           if (!a.reportType) throw new Error('request 需要 reportType');
           checkReportType(a.reportType);
-          return out(await requestReport(a.store, a));
+          return out(await requestReport(a.store, { ...a, reuseHours: fresh ? 0 : 12 }));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectReport(a.store, a.reportId), 'report');
@@ -214,6 +217,7 @@ export function buildTools(version) {
         fields: { type: 'array', items: { type: 'string' }, description: 'v1 自定字段（不用 preset 时）' },
         startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD'),
         reportId: str('collect 时必填'),
+        fresh: bool('true=不复用 12 小时内的旧报表，重新申请（刚改完竞价/预算、或窗口包含今天时用）'),
       }, ['action']),
       annotations: READ,
       async handler(a) {
@@ -221,11 +225,31 @@ export function buildTools(version) {
         if (a.action === 'request') {
           if (!a.startDate || !a.endDate) throw new Error('需要 startDate 和 endDate');
           if (!a.preset && !a.fields?.length) throw new Error('需要 preset 或 fields');
-          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, preset: a.preset, fields: a.fields }));
+          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, preset: a.preset, fields: a.fields, reuseHours: a.fresh ? 0 : 12 }));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
       },
+    },
+
+    {
+      name: 'xander_ads_report_rows',
+      description: '把 xander_ads_report collect 下载的日维度报表文件，按对象（活动/广告组/投放/搜索词/广告位/推广商品）在当前窗口和可选基准窗口内本地汇总，直接生成 xander_review_ad_performance 的输入（reviewInput），不用手工抄数。按当前窗口花费从高到低取前 limit 个对象，其余只给数量和合计花费。缺的指标保持 null，口径（广告产品、7天归因、销售范围）随行标明，覆盖与归因成熟度按申请窗口和店铺时区判断。只读本地文件，不联网、不改账户。',
+      inputSchema: S({
+        file: str('collect 返回的 file（.json）'),
+        entityType: { type: 'string', enum: ['campaign', 'ad_group', 'target', 'search_term', 'placement', 'advertised_product'], description: 'v1 报表只支持 campaign/ad_group；投放、搜索词、广告位、推广商品用对应 v3 预设下载的文件' },
+        current: S({ startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD') }, ['startDate', 'endDate']),
+        baseline: S({ startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD') }, ['startDate', 'endDate']),
+        timezone: str('广告 profile 的时区（xander_ads_profiles 里的 timezone），如 America/Los_Angeles'),
+        objective: { type: 'string', enum: ['sales', 'discovery', 'awareness'], description: '默认 sales' },
+        adProduct: { type: 'string', enum: ['SP', 'SB', 'SD'], description: '只看某一种广告' },
+        campaignIds: { type: 'array', items: { type: 'string' }, description: '只看这些活动' },
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回多少个对象，默认 50' },
+        currency: str('报表行没有币种时才需要，如 USD'),
+        basisOverride: S({ salesScope: { type: 'string', enum: ['PROMOTED', 'HALO', 'COMBINED'] }, attributionWindow: str('如 14d click'), source: str('口径依据（必填），如官方文档链接') }, ['source']),
+      }, ['file', 'entityType', 'current', 'timezone']),
+      annotations: LOCAL_READ,
+      async handler(a) { return out(adReportRows(a), 'ads-report-rows'); },
     },
 
     // ---------------- 经营诊断 / 行动与实验复盘（仅本地） ----------------
@@ -240,12 +264,46 @@ export function buildTools(version) {
     // ---------------- 档案库（本地） ----------------
     {
       name: 'xander_archive_overview',
-      description: '读取店铺档案：不传 sku 看店铺级事实和产品清单；传 sku 看该产品当前有效的成本/箱规/交期等事实和未完成待办。做利润、补货、广告经济前先读这里，已有的信息不要再问用户。',
-      inputSchema: S({ store, sku: str('可选') }),
+      description: '读取店铺记忆（一次拿全）：店铺/产品当前有效的成本、箱规、交期等事实，未完成待办，最近的决策（含已完成），最近真正执行过的改动（来自提案记录，含原值→新值和理由），以及本地实验卡与到期待复盘项。不传 sku/asin 看全店；传 sku 或 asin 看单品（asin 会按档案登记反查 SKU）。做利润、补货、广告、Listing 前先读这里：已有的不要再问用户，上次的决策和改动要接着用。',
+      inputSchema: S({ store, sku: str('可选'), asin: str('可选；没有 SKU 时用 ASIN 查') }),
       annotations: LOCAL_READ,
-      async handler({ store: alias, sku }) {
+      async handler({ store: alias, sku, asin }) {
         const s = getStore(alias);
-        return out({ ...archive.overview(s.alias, sku || null), standardFields: sku ? undefined : archive.STANDARD_FIELDS });
+        let target = sku || null;
+        const gaps = [];
+        if (!target && asin) {
+          const skus = archive.skusForAsin(s.alias, asin);
+          if (skus.length === 1) target = skus[0];
+          else if (skus.length > 1) return out({ store: s.alias, asin, candidates: skus, note: `ASIN ${asin} 在档案里对应多个 SKU，请指定其中一个 sku 再查。` });
+          else gaps.push(`档案里还没有登记 ASIN ${asin} 对应的 SKU；可用 xander_archive_product 登记后再查单品事实。`);
+        }
+        const base = archive.overview(s.alias, target);
+        const experiments = [];
+        const today = new Date().toISOString().slice(0, 10);
+        for (const marketplace of s.marketplaces || []) {
+          try {
+            for (const e of listExperiments({ store: s.alias, marketplace, ...(target ? { sku: target } : {}), ...(!target && asin ? { asin } : {}), limit: 10 })) {
+              const last = e.latestReview;
+              experiments.push({ id: e.id, marketplace, sku: e.scope?.sku ?? null, asin: e.scope?.asin ?? null, actionId: e.actionId,
+                hypothesis: e.hypothesis, primaryVariable: e.primaryVariable, earliestReviewDate: e.earliestReviewDate, proposalId: e.proposalId ?? null,
+                reviewCount: e.reviewCount, latestReview: last ? { createdAt: last.createdAt, status: last.status, decision: last.decision ?? null } : null,
+                dueForReview: e.earliestReviewDate <= today && (!last || last.decision === 'continue_observing') });
+            }
+          } catch (err) { gaps.push(`${marketplace} 站实验卡读取失败：${err.message}`); }
+        }
+        return out({
+          ...base,
+          ...(asin ? { asin } : {}),
+          recentChanges: recentChanges(s.alias, { sku: target, asin: asin || base.product?.asin, limit: 10 }),
+          experiments,
+          ...(experiments.some((e) => e.dueForReview) ? { reminder: '有实验卡已到最早复盘日期且还没有结论：先问用户要不要现在复盘（取同口径新数据，用 xander_experiment_review 记录），不要自动改账户。' } : {}),
+          memoryNotes: [
+            'recentChanges 来自本机提案记录，只说明当时提交和回读状态；当前值以接口重新读取为准。广告对象通常无法直接对应到某个 SKU，aboutThisProduct=false 不代表与该产品无关。',
+            'dueForReview 按 UTC 日期粗算，只是提醒，不是已安排的监控。',
+            ...gaps,
+          ],
+          standardFields: target ? undefined : archive.STANDARD_FIELDS,
+        });
       },
     },
     {
@@ -287,11 +345,11 @@ export function buildTools(version) {
     {
       name: 'xander_archive_note',
       description: '记录决策、待办或进度（action=add），或把待办标记完成（action=done）。交接时把结论、待办和下一步记在这里。',
-      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: num('done 时的待办编号') }, ['action']),
+      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: { type: 'integer', minimum: 1, description: 'done 时的待办编号' } }, ['action']),
       annotations: LOCAL_WRITE,
       async handler(a) {
-        if (a.action === 'done') return archive.completeNote(a.id);
         const s = getStore(a.store);
+        if (a.action === 'done') return archive.completeNote(s.alias, a.id);
         return archive.addNote(s.alias, a);
       },
     },
@@ -420,10 +478,17 @@ export function buildTools(version) {
     },
     {
       name: 'xander_change_log',
-      description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。',
-      inputSchema: S({ limit: num('条数，默认 50') }),
+      description: '查看最近的提案列表和写入日志（谁在什么时候改了什么、结果如何）。传 store 只看该店铺；只想知道“最近真正改过什么”时优先用 xander_archive_overview 的 recentChanges。',
+      inputSchema: S({ store: str('可选：只看这个店铺'), limit: num('条数，默认 50') }),
       annotations: LOCAL_READ,
-      async handler({ limit = 50 }) { return out({ proposals: listProposals(20), ledger: changeLog(limit) }); },
+      async handler({ store: alias, limit = 50 }) {
+        if (!alias) return out({ proposals: listProposals(20), ledger: changeLog(limit) });
+        const s = getStore(alias);
+        const mine = listProposals(Infinity).filter((x) => x.store === s.alias);
+        const ids = new Set(mine.map((x) => x.id));
+        const ledger = changeLog(Infinity).filter((e) => e.store === s.alias || ids.has(e.proposalId)).slice(-limit);
+        return out({ store: s.alias, proposals: mine.slice(0, 20), ledger });
+      },
     },
 
     // ---------------- 紫鸟（实验） ----------------

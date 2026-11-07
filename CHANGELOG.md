@@ -1,5 +1,19 @@
 # 更新记录
 
+## 未发布
+
+- 记忆升级：`xander_archive_overview` 一次返回事实、未完成待办、最近决策（含已完成）、本店最近真正执行过的改动（原值→新值和理由，来自提案记录）、实验卡与到期待复盘提醒；支持只传 ASIN（按档案登记反查 SKU）。总协调技能要求开工前先说明“上次做到哪了”。
+- `xander_change_log` 支持按店铺过滤。
+- 新增只读 `xander_ads_report_rows`：把 collect 下载的日维度广告报表按活动/广告组/投放/搜索词/广告位/推广商品，在当前和基准窗口内本地汇总，直接生成 `xander_review_ad_performance` 的输入，不再靠 AI 手工抄数。缺失指标保持 null；按申请窗口判断覆盖、按 profile 时区判断归因成熟；v1 口径未核实时标 unknown，可用带来源的 `basisOverride` 明确。广告报表下载时会在旁边写一份 `.meta.json` 记录申请窗口。
+- 技能文档瘦身：广告、Listing、竞品、关键词四个模块的 SKILL.md 从约 48KB 压到约 16KB（全部 7 个入口从 67.6KB 到 36.1KB），只保留路由表、中文底线和收尾。原正文逐字移到各模块 `references/core-rules.md`，在出正式方案/发布包/执行改动/声称 READY 前要求完整读取，规则未删改；全部链接已校验，无断链、无孤立参考。
+- 更正 `ads.js` 注释：官方 `QueryTargetRequest.maxResults` 上限为 5000，列表仍保守每页取 1000（行为不变）。
+- 修复失败/取消的报表在 12 小时内被同参数请求反复复用：卖家报表 `FATAL`/`CANCELLED`、广告报表 `FAILED` 在 collect 时会从复用索引中移除。`xander_spapi_report` 与 `xander_ads_report` 新增 `fresh=true`，刚改完竞价/价格或需要当前快照时可跳过复用。
+- 修复广告 v1 报表在读不到账户站点映射时把所有行当“未知站点”丢掉、返回看似 0 行的结果；现在直接报错并提示用同一 reportId 重新 collect。
+- 卖家报表按文件内容判断 JSON/TSV，`GET_SALES_AND_TRAFFIC_REPORT` 等不再被存成 `.tsv`。
+- 修复 CSV 成本表预览（dryRun）也会写入产品表；产品登记移到正式导入的同一事务里。
+- `xander_archive_note` 标记完成时核对店铺与编号，不存在的编号会报错，不再误报成功。
+- 档案库连接设置 `busy_timeout`，多进程同时写入时等待而不是立即报 database is locked。
+
 ## 2.7.0 — 2026-11-06
 
 - 新增 DSH 专属「亚马逊运营」agent 预设（行 id `preset-amazon`，预设 id `amazon`，界面显示「亚马逊运营」）。persona 里写死三件事：新会话第一个动作调用 `xander_status`；任何亚马逊话题——即使完全没提 Xander——先加载 `xander-operations` 技能、再按它的路由表加载模块技能、最后用 `xander_*` 取真实数据作答；改后台只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读。
