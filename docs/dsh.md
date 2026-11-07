@@ -1,6 +1,6 @@
 # DSH 接入指南
 
-本文对应根包 `xander-zaozao-xiaban` **2.5.2** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
+本文对应根包 `xander-zaozao-xiaban` **2.8.0** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
 
 **DSH 原生适配从 v2.5.1 起提供。** GitHub 版本发布与市场收录是两个独立步骤：可按下方固定版本来源安装，市场是否已收录以目录实际状态为准。本文是安装与验收说明，不表示已经完成真实店铺验证。
 
@@ -30,21 +30,21 @@ Claude Code、Codex CLI / ChatGPT 桌面版与 Claude 桌面版的原有入口�
 
 **不要为运行中的 Desktop 切换或改写 profile，也不要手工修改它的包配置或 Cordis 补丁。** 安装、启停、升级和卸载均通过当前 Desktop 的插件管理器处理。
 
-### 固定版本来源：v2.5.2
+### 固定版本来源：v2.8.0
 
 在当前 Desktop 插件管理器的“来源”输入框填入以下来源：
 
 ```text
-github:gx18391303625-afk/xander-zaozao-xiaban#v2.5.2
+github:gx18391303625-afk/xander-zaozao-xiaban#v2.8.0
 ```
 
 也可以直接使用该版本的 Release 安装包：
 
 ```text
-https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.5.2/xander-zaozao-xiaban-2.5.2.tgz
+https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.8.0/xander-zaozao-xiaban-2.8.0.tgz
 ```
 
-请先核对 [v2.5.2 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.5.2>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
+请先核对 [v2.8.0 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.8.0>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
 
 ### 非 Desktop 的本地 DSH CLI
 
