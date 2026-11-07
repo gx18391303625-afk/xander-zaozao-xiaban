@@ -1,5 +1,14 @@
 # 更新记录
 
+## 未发布
+
+- 修复失败/取消的报表在 12 小时内被同参数请求反复复用：卖家报表 `FATAL`/`CANCELLED`、广告报表 `FAILED` 在 collect 时会从复用索引中移除。`xander_spapi_report` 与 `xander_ads_report` 新增 `fresh=true`，刚改完竞价/价格或需要当前快照时可跳过复用。
+- 修复广告 v1 报表在读不到账户站点映射时把所有行当“未知站点”丢掉、返回看似 0 行的结果；现在直接报错并提示用同一 reportId 重新 collect。
+- 卖家报表按文件内容判断 JSON/TSV，`GET_SALES_AND_TRAFFIC_REPORT` 等不再被存成 `.tsv`。
+- 修复 CSV 成本表预览（dryRun）也会写入产品表；产品登记移到正式导入的同一事务里。
+- `xander_archive_note` 标记完成时核对店铺与编号，不存在的编号会报错，不再误报成功。
+- 档案库连接设置 `busy_timeout`，多进程同时写入时等待而不是立即报 database is locked。
+
 ## 2.7.0 — 2026-11-06
 
 - 新增 DSH 专属「亚马逊运营」agent 预设（行 id `preset-amazon`，预设 id `amazon`，界面显示「亚马逊运营」）。persona 里写死三件事：新会话第一个动作调用 `xander_status`；任何亚马逊话题——即使完全没提 Xander——先加载 `xander-operations` 技能、再按它的路由表加载模块技能、最后用 `xander_*` 取真实数据作答；改后台只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读。

@@ -159,13 +159,14 @@ export function buildTools(version) {
         dataStartTime: str('ISO 时间，如 2026-10-01T00:00:00Z'), dataEndTime: str('ISO 时间'),
         reportOptions: { type: 'object', additionalProperties: true, description: '报表选项（如 SQP 的 reportPeriod、asin）' },
         reportId: str('collect 时必填'),
+        fresh: bool('true=不复用 12 小时内的旧报表，重新申请（刚改完价格/库存、或需要当前快照时用）'),
       }, ['action']),
       annotations: READ,
-      async handler(a) {
+      async handler({ fresh, ...a }) {
         if (a.action === 'request') {
           if (!a.reportType) throw new Error('request 需要 reportType');
           checkReportType(a.reportType);
-          return out(await requestReport(a.store, a));
+          return out(await requestReport(a.store, { ...a, reuseHours: fresh ? 0 : 12 }));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectReport(a.store, a.reportId), 'report');
@@ -214,6 +215,7 @@ export function buildTools(version) {
         fields: { type: 'array', items: { type: 'string' }, description: 'v1 自定字段（不用 preset 时）' },
         startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD'),
         reportId: str('collect 时必填'),
+        fresh: bool('true=不复用 12 小时内的旧报表，重新申请（刚改完竞价/预算、或窗口包含今天时用）'),
       }, ['action']),
       annotations: READ,
       async handler(a) {
@@ -221,7 +223,7 @@ export function buildTools(version) {
         if (a.action === 'request') {
           if (!a.startDate || !a.endDate) throw new Error('需要 startDate 和 endDate');
           if (!a.preset && !a.fields?.length) throw new Error('需要 preset 或 fields');
-          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, preset: a.preset, fields: a.fields }));
+          return out(await requestAdsReport(s.alias, { marketplace: a.marketplace, startDate: a.startDate, endDate: a.endDate, preset: a.preset, fields: a.fields, reuseHours: a.fresh ? 0 : 12 }));
         }
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
@@ -287,11 +289,11 @@ export function buildTools(version) {
     {
       name: 'xander_archive_note',
       description: '记录决策、待办或进度（action=add），或把待办标记完成（action=done）。交接时把结论、待办和下一步记在这里。',
-      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: num('done 时的待办编号') }, ['action']),
+      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: { type: 'integer', minimum: 1, description: 'done 时的待办编号' } }, ['action']),
       annotations: LOCAL_WRITE,
       async handler(a) {
-        if (a.action === 'done') return archive.completeNote(a.id);
         const s = getStore(a.store);
+        if (a.action === 'done') return archive.completeNote(s.alias, a.id);
         return archive.addNote(s.alias, a);
       },
     },
