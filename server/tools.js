@@ -26,6 +26,7 @@ import { accessToken } from '../lib/lwa.js';
 import { marketplaceById, marketplace as mpOf } from '../lib/regions.js';
 import { buildDecisionTools } from './decision-tools.js';
 import { AD_PERFORMANCE_SCHEMA, reviewAdPerformance } from '../lib/ad-performance.js';
+import { adReportRows } from '../lib/ad-report-rows.js';
 
 const MAX_INLINE = 60_000;
 
@@ -229,6 +230,26 @@ export function buildTools(version) {
         if (!a.reportId) throw new Error('collect 需要 reportId');
         return out(await collectAdsReport(s.alias, a.reportId, { marketplace: a.marketplace }), 'ads-report');
       },
+    },
+
+    {
+      name: 'xander_ads_report_rows',
+      description: '把 xander_ads_report collect 下载的日维度报表文件，按对象（活动/广告组/投放/搜索词/广告位/推广商品）在当前窗口和可选基准窗口内本地汇总，直接生成 xander_review_ad_performance 的输入（reviewInput），不用手工抄数。按当前窗口花费从高到低取前 limit 个对象，其余只给数量和合计花费。缺的指标保持 null，口径（广告产品、7天归因、销售范围）随行标明，覆盖与归因成熟度按申请窗口和店铺时区判断。只读本地文件，不联网、不改账户。',
+      inputSchema: S({
+        file: str('collect 返回的 file（.json）'),
+        entityType: { type: 'string', enum: ['campaign', 'ad_group', 'target', 'search_term', 'placement', 'advertised_product'], description: 'v1 报表只支持 campaign/ad_group；投放、搜索词、广告位、推广商品用对应 v3 预设下载的文件' },
+        current: S({ startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD') }, ['startDate', 'endDate']),
+        baseline: S({ startDate: str('YYYY-MM-DD'), endDate: str('YYYY-MM-DD') }, ['startDate', 'endDate']),
+        timezone: str('广告 profile 的时区（xander_ads_profiles 里的 timezone），如 America/Los_Angeles'),
+        objective: { type: 'string', enum: ['sales', 'discovery', 'awareness'], description: '默认 sales' },
+        adProduct: { type: 'string', enum: ['SP', 'SB', 'SD'], description: '只看某一种广告' },
+        campaignIds: { type: 'array', items: { type: 'string' }, description: '只看这些活动' },
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回多少个对象，默认 50' },
+        currency: str('报表行没有币种时才需要，如 USD'),
+        basisOverride: S({ salesScope: { type: 'string', enum: ['PROMOTED', 'HALO', 'COMBINED'] }, attributionWindow: str('如 14d click'), source: str('口径依据（必填），如官方文档链接') }, ['source']),
+      }, ['file', 'entityType', 'current', 'timezone']),
+      annotations: LOCAL_READ,
+      async handler(a) { return out(adReportRows(a), 'ads-report-rows'); },
     },
 
     // ---------------- 经营诊断 / 行动与实验复盘（仅本地） ----------------
