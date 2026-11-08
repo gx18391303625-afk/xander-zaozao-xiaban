@@ -10,6 +10,7 @@
 | `API_STATE_VERIFIED` | 已经改好，并且读回来核对过，和提案一致 |
 | `EXTERNALLY_RECONCILED` | 已用真实网页观察和恢复原值记录完成本地核验收尾；不表示原目标仍是当前 API 值，也不会重发原请求 |
 | `AWAITING_READBACK` | 亚马逊收到了，但还没生效/还读不到，过一会儿再核对 |
+| `IMAGE_CONTRIBUTION_SUBMITTED` | 图片已被受理，但亚马逊把卖家图换成了自家 CDN 地址，接口没法逐张核对；改没改要看零售页 |
 | `MISMATCH` | 改了，但读回来的值和提案不一样，需要人看一下 |
 | `FAILED` | 亚马逊明确拒绝了，没改成 |
 | `OUTCOME_UNKNOWN` | 不确定改没改成（比如超时）。**不会重发**，先核对再说 |

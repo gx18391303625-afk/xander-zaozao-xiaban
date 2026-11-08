@@ -492,3 +492,41 @@ test('A+ null-tolerant content comparison never ignores an ASIN association or r
   assert.match(result.note, /不等于.*页面显示/);
   assert.equal(f.state.calls.filter((call) => call.isWrite).length, 0);
 });
+
+test('listing image: readback compares stable image identity, ignoring signature params and percent-encoding', async () => {
+  const f = fixture();
+  f.state.imageAttrs.main_product_image_locator = [{ marketplace_id: US, media_location: 'https://m.media-amazon.com/images/I/7121%2B9AZvUL.jpg?X-Amz-Signature=abc' }];
+  const readback = await f.ops[0].readback(store, { sku: 'SYNTHETIC-SKU', marketplace: 'US' },
+    { main_product_image_locator: 'https://m.media-amazon.com/images/I/7121+9AZvUL.jpg' }, { ok: true, status: 'IMAGES_ACCEPTED' });
+  assert.equal(readback.status, 'IMAGE_CONTRIBUTION_VERIFIED');
+  assert.equal(readback.match, true);
+});
+
+test('listing image: seller-hosted image rehosted by Amazon ends as a retail-check state, never endless pending', async () => {
+  const f = fixture();
+  f.state.imageAttrs.main_product_image_locator = [{ marketplace_id: US, media_location: 'https://m.media-amazon.com/images/I/71IwHHfvyfL.jpg' }];
+  const readback = await f.ops[0].readback(store, { sku: 'SYNTHETIC-SKU', marketplace: 'US' },
+    { main_product_image_locator: 'https://xander-stream.s3.us-east-1.amazonaws.com/listing-assets/MAIN-abc.jpg?X-Amz-Signature=deadbeef' },
+    { ok: true, status: 'IMAGES_ACCEPTED' });
+  assert.equal(readback.status, 'IMAGE_CONTRIBUTION_SUBMITTED');
+  assert.equal(readback.match, false);
+  assert.match(readback.note, /零售页/);
+});
+
+test('listing image: differing Amazon-hosted images are a real mismatch, not an unverifiable submit', async () => {
+  const f = fixture();
+  f.state.imageAttrs.main_product_image_locator = [{ marketplace_id: US, media_location: 'https://m.media-amazon.com/images/I/71ZDYEd5aiL.jpg' }];
+  const readback = await f.ops[0].readback(store, { sku: 'SYNTHETIC-SKU', marketplace: 'US' },
+    { main_product_image_locator: 'https://m.media-amazon.com/images/I/71IwHHfvyfL.jpg' }, { ok: true, status: 'IMAGES_ACCEPTED' });
+  assert.equal(readback.status, 'MISMATCH');
+  assert.equal(readback.match, false);
+});
+
+test('listing image: unknown send result stays unknown instead of claiming a verified or submitted outcome', async () => {
+  const f = fixture();
+  f.state.imageAttrs.main_product_image_locator = [{ marketplace_id: US, media_location: 'https://m.media-amazon.com/images/I/71IwHHfvyfL.jpg' }];
+  const readback = await f.ops[0].readback(store, { sku: 'SYNTHETIC-SKU', marketplace: 'US' },
+    { main_product_image_locator: 'https://xander-stream.s3.us-east-1.amazonaws.com/listing-assets/MAIN-abc.jpg' },
+    { ok: false, status: 'OUTCOME_UNKNOWN' });
+  assert.equal(readback.status, 'OUTCOME_UNKNOWN');
+});
