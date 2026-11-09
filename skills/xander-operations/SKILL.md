@@ -28,7 +28,7 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 
 1. 每个会话先调用一次 `xander_status`，看已接入哪些店铺、哪些开关开着。之后复用结果，连接出错时再查。
 2. 还没接入、或用户说“帮我接店铺/广告/卖家精灵/紫鸟/云备份”：按 [setup-guide.md](references/setup-guide.md) 带用户一步步做。**令牌和密钥只能由用户在自己的终端里运行 `xander setup` 时输入**，绝不让用户把密钥贴进对话；用户贴了也要提醒他去重置这把密钥。
-3. 做具体产品或店铺的事之前，先用 `xander_archive_overview` 读记忆（传 sku，或只有 ASIN 时传 asin）。它一次返回：采购价/头程/箱规/交期等事实、未完成待办、最近的决策（含已完成）、最近真正执行过的改动（原值→新值和理由）、实验卡和到期待复盘项。档案里有的就不要再问；先用一句话告诉用户“上次做到哪了”（最近决策/改动/到期复盘），再接着做。有 `reminder` 时先问用户要不要复盘。规则见 [business-context.md](references/business-context.md)。
+3. 做具体产品或店铺的事之前，先用 `xander_archive_overview` 读记忆（传 sku，或只有 ASIN 时传 asin）。它一次返回：采购价/头程/箱规/交期等事实、未完成待办、最近的决策（含已完成）、最近真正执行过的改动（原值→新值和理由）、实验卡和到期待复盘项。档案里有的就不要再问；先看返回里的 `rules`（用户定下的长期规则）并遵守；用户说出长期口径、偏好或红线时，复述确认后用 `xander_archive_note` kind=rule 记下。先用一句话告诉用户“上次做到哪了”（最近决策/改动/到期复盘），再接着做。有 `reminder` 时先问用户要不要复盘。规则见 [business-context.md](references/business-context.md)。
 4. 选品已冻结（另做独立插件）：模块之间的追溯 ID、选品相关引用按 [lineage-and-selection.md](references/lineage-and-selection.md) 处理，缺选品 ID 不要停、不要编。
 5. 要数据时自动取，不要让用户手动导出报表。读取方法、报表类型和六模块验收标准见 [data-workflow.md](references/data-workflow.md)。用户主动给文件时按 [file-import.md](references/file-import.md) 处理。
 
@@ -59,4 +59,4 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 
 ## 收尾
 
-先给结论，再给有日期的证据、关键缺口和下一步。新确认的事实用 `xander_archive_set_fact` 记下（只记用户确认过的，写清来源）；决策、待办、进度用 `xander_archive_note` 记下，方便下次接着做。
+先给结论，再给有日期的证据、关键缺口和下一步。新确认的事实用 `xander_archive_set_fact` 记下（只记用户确认过的，写清来源）；决策、待办、进度、长期规则（rule）用 `xander_archive_note` 记下，方便下次接着做。

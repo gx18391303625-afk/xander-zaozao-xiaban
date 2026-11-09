@@ -264,7 +264,7 @@ export function buildTools(version) {
     // ---------------- 档案库（本地） ----------------
     {
       name: 'xander_archive_overview',
-      description: '读取店铺记忆（一次拿全）：店铺/产品当前有效的成本、箱规、交期等事实，未完成待办，最近的决策（含已完成），最近真正执行过的改动（来自提案记录，含原值→新值和理由），以及本地实验卡与到期待复盘项。不传 sku/asin 看全店；传 sku 或 asin 看单品（asin 会按档案登记反查 SKU）。做利润、补货、广告、Listing 前先读这里：已有的不要再问用户，上次的决策和改动要接着用。',
+      description: '读取店铺记忆（一次拿全）：店铺/产品当前有效的成本、箱规、交期等事实，rules（用户定下的长期规则，回答和操作必须遵守，冲突时先问用户），openTodos、openNotes，recentDecisions（最近的决策，含已完成），recentProgress（最近 5 条进度），memoryCounts（各类总数；更早的进度和决策用 xander_archive_notes 查），最近真正执行过的改动（来自提案记录，含原值→新值和理由），以及本地实验卡与到期待复盘项。不传 sku/asin 看全店；传 sku 或 asin 看单品（asin 会按档案登记反查 SKU）。做利润、补货、广告、Listing 前先读这里：已有的不要再问用户，上次的决策和改动要接着用。',
       inputSchema: S({ store, sku: str('可选'), asin: str('可选；没有 SKU 时用 ASIN 查') }),
       annotations: LOCAL_READ,
       async handler({ store: alias, sku, asin }) {
@@ -300,6 +300,8 @@ export function buildTools(version) {
           memoryNotes: [
             'recentChanges 来自本机提案记录，只说明当时提交和回读状态；当前值以接口重新读取为准。广告对象通常无法直接对应到某个 SKU，aboutThisProduct=false 不代表与该产品无关。',
             'dueForReview 按 UTC 日期粗算，只是提醒，不是已安排的监控。',
+            ...(base.memoryCounts.progress > 5 || base.memoryCounts.decisions > 10 ? ['更早的进度和决策没有全部带上（见 memoryCounts），需要时用 xander_archive_notes 按关键词或类型查。'] : []),
+            ...(base.rules.length ? ['先读 rules：这是用户定下的长期规则，本次回答和操作必须遵守；与新要求冲突时先问用户。'] : []),
             ...gaps,
           ],
           standardFields: target ? undefined : archive.STANDARD_FIELDS,
@@ -344,13 +346,23 @@ export function buildTools(version) {
     },
     {
       name: 'xander_archive_note',
-      description: '记录决策、待办或进度（action=add），或把待办标记完成（action=done）。交接时把结论、待办和下一步记在这里。',
-      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress'] }, text: str('内容'), id: { type: 'integer', minimum: 1, description: 'done 时的待办编号' } }, ['action']),
+      description: '记录决策、待办、进度或长期规则（action=add），或把某条标记完成/停用（action=done）。kind=rule 只用于用户明确说过的长期口径、偏好或红线（如“以后都…”“必须…”“不要…”），先向用户复述确认再记，写清规则内容和来源日期；每次读档案都会全部带上。用户撤销规则时用 action=done 停用。进度（progress）只是流水，开场只带最近 5 条。',
+      inputSchema: S({ store, action: { type: 'string', enum: ['add', 'done'] }, sku: str('可选'), kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress', 'rule'] }, text: str('内容'), id: { type: 'integer', minimum: 1, description: 'done 时的待办编号' } }, ['action']),
       annotations: LOCAL_WRITE,
       async handler(a) {
         const s = getStore(a.store);
         if (a.action === 'done') return archive.completeNote(s.alias, a.id);
         return archive.addNote(s.alias, a);
+      },
+    },
+    {
+      name: 'xander_archive_notes',
+      description: '按类型、SKU、关键词查历史记忆（决策、进度、待办、规则、备注），从新到旧，可翻页。用户问“上次怎么做的/之前定过什么”而概览里没有时用它。',
+      inputSchema: S({ store, kind: { type: 'string', enum: ['note', 'decision', 'todo', 'progress', 'rule'] }, sku: str('可选'), q: str('关键词，按文字包含匹配'), includeDone: bool('默认 true'), limit: { type: 'integer', minimum: 1, maximum: 100 }, beforeId: { type: 'integer', minimum: 1, description: '翻页：上次返回的 nextBeforeId' } }),
+      annotations: LOCAL_READ,
+      async handler(a) {
+        const s = getStore(a.store);
+        return out(archive.searchNotes(s.alias, a));
       },
     },
     {

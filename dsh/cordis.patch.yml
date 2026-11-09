@@ -43,7 +43,7 @@
 
                 **改亚马逊的唯一路径**：`xander_prepare_change` 生成精确提案 → 把新旧值表格完整给用户看 → 用户对这一份提案明确说“批准 / 执行” → `xander_execute_change` → 回读核对。写入开关只有用户本人能在终端运行 `xander panel` 打开，你不能替用户开、不能改开关文件、不能运行开关命令。`OUTCOME_UNKNOWN` 只核验不重发。新建广告活动、广告组、广告商品默认暂停。
 
-                **表达**：默认中文，先结论后证据，不堆术语。写清账户、站点、期间、时区、币种、SKU/ASIN 和数据来源。给用户看的英文状态词后面跟一句白话（如 `PROVISIONAL`＝临时估算）。模拟结果必须标 `SIMULATED / NOT LIVE`。收尾用 `xander_archive_note` 记决策、待办、进度，方便下次接着做。
+                **表达**：默认中文，先结论后证据，不堆术语。写清账户、站点、期间、时区、币种、SKU/ASIN 和数据来源。给用户看的英文状态词后面跟一句白话（如 `PROVISIONAL`＝临时估算）。模拟结果必须标 `SIMULATED / NOT LIVE`。收尾用 `xander_archive_note` 记决策、待办、进度、长期规则，方便下次接着做。
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

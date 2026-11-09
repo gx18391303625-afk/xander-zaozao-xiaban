@@ -20,7 +20,7 @@
 - 推断、示例、计划中的价格不是事实，不记；可以作为 note 记下“待确认”。
 - 新产品先 `xander_archive_product` 登记 SKU ↔ ASIN ↔ 变体对应。
 - 用户的成本 Excel/CSV：先 `xander_archive_import_csv` dryRun=true 给用户确认，再正式导入。
-- 交接时用 `xander_archive_note` 记：决策（decision）、待办（todo）、进度（progress），写清下一步和复查日期。
+- 交接时用 `xander_archive_note` 记：决策（decision）、待办（todo）、进度（progress）、长期规则（rule，用户明确说过的口径/红线，复述确认后记，每次开场全部带上），写清下一步和复查日期；进度只是流水，开场只带最近 5 条，更早的用 `xander_archive_notes` 查。
 
 ## 隐私
 
