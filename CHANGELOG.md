@@ -1,5 +1,12 @@
 # 更新记录
 
+## 2.9.0 — 2026-11-08
+
+- 新增长期规则：记档案时 `kind=rule` 记用户定下的口径、偏好和红线（如“先排除站外促销订单再判断站内表现”），每次读档案都会全部带上，不再被大量进度流水挤掉；用户撤销时用 `action=done` 停用。
+- 档案概览按类型拆开返回：`rules`、`openTodos`、`openNotes`（只含普通备注）、`recentDecisions`、`recentProgress`（只带最近 5 条）和 `memoryCounts`（各类总数，方便知道哪些没带上）。
+- 新增 `xander_archive_notes`：按类型、SKU、关键词查更早的决策、进度、待办和规则，从新到旧，可翻页。
+- 四处版本号（package.json、plugin.json、Claude 与 Codex 插件清单）和 DSH 文档对齐到 2.9.0。
+
 ## 2.8.1 — 2026-11-08
 
 - 修复改图提案永远停在 `AWAITING_READBACK`：图片回读原来用原始 URL 字符串严格比对，而 Amazon 会把卖家提交的图片换成自家 CDN 地址（`m.media-amazon.com`），签名参数也会过期，两边的字符串天然不可能相等，提案于是既不成功也不失败地一直挂着（本机实测 7 份，最早 10-26）。

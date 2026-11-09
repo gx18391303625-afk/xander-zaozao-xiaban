@@ -55,7 +55,7 @@
   然后在 ChatGPT 桌面版的“插件”目录里安装。找不到的话见 [手动安装](docs/新手接入教程.md#8-手动安装备用)。
 - DSH Desktop（`^0.2.1-rc.5`）：在插件管理器的“来源”输入框填固定版本来源，由插件管理器安装，不手工改 profile：
   ```text
-  github:gx18391303625-afk/xander-zaozao-xiaban#v2.8.0
+  github:gx18391303625-afk/xander-zaozao-xiaban#v2.9.0
   ```
   也可用 GitHub Release 安装包或本地仓库绝对目录。DSH 使用原生 `xander_*` 工具，不另启 Xander MCP 子进程。安装、只读验收、重复旧 MCP 的确认后停用和市场收录说明见 **[DSH 接入指南](<docs/dsh.md>)**。GitHub 发布不等于已获市场审核通过。
 
