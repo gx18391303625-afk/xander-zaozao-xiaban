@@ -19,9 +19,9 @@
   ],
   "mcpServers": {
     "xander": {
-      "command": "node",
+      "command": "/bin/sh",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/server/index.js"
+        "${CLAUDE_PLUGIN_ROOT}/server/launch.sh"
       ]
     }
   }
