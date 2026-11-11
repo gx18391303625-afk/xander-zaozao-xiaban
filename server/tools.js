@@ -164,8 +164,11 @@ export function buildTools(version) {
         fresh: bool('true=不复用 12 小时内的旧报表，重新申请（刚改完价格/库存、或需要当前快照时用）'),
       }, ['action']),
       annotations: READ,
+      argumentHint: '时间范围参数名是 dataStartTime / dataEndTime（ISO 时间，如 2026-10-01T00:00:00Z）。',
       async handler({ fresh, ...a }) {
         if (a.action === 'request') {
+          const wrong = ['startDate', 'endDate', 'start', 'end', 'startTime', 'endTime'].filter((k) => a[k] !== undefined);
+          if (wrong.length) throw new Error(`不认识的时间参数：${wrong.join('、')}。请改用 dataStartTime / dataEndTime（ISO 时间，如 2026-10-01T00:00:00Z）。`);
           if (!a.reportType) throw new Error('request 需要 reportType');
           checkReportType(a.reportType);
           return out(await requestReport(a.store, { ...a, reuseHours: fresh ? 0 : 12 }));
@@ -459,7 +462,7 @@ export function buildTools(version) {
     },
     {
       name: 'xander_prepare_change',
-      description: '为亚马逊改动生成本地精确提案，不正式提交亚马逊：读取当前值、检查安全上限，Listing 文案做 Amazon VALIDATION_PREVIEW。listing.attribute 支持 item_name、title_differentiation（Item Highlights 亮点）、bullet_point、product_description、generic_keyword；亮点额外检查真实 PTD 的字段支持与基础结构，完整条件规则由 Amazon 预校验。languageTag 指定目标语言，保留其他站点/语言的原值。原值相同则不生成提案。返回提案编号、哈希和新旧值对照表；格式见 xander_switches 的 operations。',
+      description: '为亚马逊改动生成本地精确提案，不正式提交亚马逊：读取当前值、检查安全上限，Listing 文案做 Amazon VALIDATION_PREVIEW。listing.attribute 支持 item_name、title_differentiation（Item Highlights 亮点）、bullet_point、product_description、generic_keyword；亮点额外检查真实 PTD 的字段支持与基础结构，完整条件规则由 Amazon 预校验。languageTag 指定目标语言，保留其他站点/语言的原值。原值相同则不生成提案。返回提案编号、哈希和新旧值对照表；格式见 xander_switches 的 operations。changes 里每项是扁平对象：操作参数与 op 同级，不要嵌套 params，例如 {"op":"ads.sp.target.bid","targetId":"123","value":0.85,"reason":"…"}。改广告位加价/竞价会在“提醒”里给出最高有效出价前后对比。',
       inputSchema: S({
         store, marketplace: mkt, note: str('这次改动的目的'),
         changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -506,14 +509,14 @@ export function buildTools(version) {
     // ---------------- 紫鸟（实验） ----------------
     {
       name: 'xander_ziniao_status',
-      description: '查看紫鸟浏览器是否配置、能否连上、店铺列表，以及“紫鸟控制”开关状态。',
+      description: '查看紫鸟浏览器是否配置、能否连上、店铺列表，以及“紫鸟控制”开关状态。只读取状态；要在页面里点击/填写，见 xander_ziniao_snapshot 的说明（走 ziniao.control 提案）。',
       inputSchema: S({}),
       annotations: LOCAL_READ,
       async handler() { return out(await ziniao.status()); },
     },
     {
       name: 'xander_ziniao_snapshot',
-      description: '（需要用户打开“紫鸟控制”开关）用紫鸟打开指定店铺浏览器，可选跳转到亚马逊后台某个网址，读取页面标题和文字。只读，不点击任何东西。只在官方接口做不到时使用。',
+      description: '（需要用户打开“紫鸟控制”开关）用紫鸟打开指定店铺浏览器，可选跳转到亚马逊后台某个网址，读取页面标题和文字。本工具只读，不点击、不填写。只在官方接口做不到时使用。若需要点击/填写：用 xander_prepare_change 提交 {op:"ziniao.control", browserId, description, steps:[…]} 提案（步骤动作：goto / click / clickText / type / press / wait；goto 只允许亚马逊后台网址，即 https://…amazon.* / sellercentral / advertising.amazon），需要用户先打开“紫鸟控制”开关并明确批准，再用 xander_execute_change 执行，执行后用本工具抓取页面核对结果。',
       inputSchema: S({ browserId: str('紫鸟店铺 ID（从 xander_ziniao_status 获取）'), url: str('可选：亚马逊后台网址'), waitForSelector: str('可选：只读等待SPA页面控件，最多30秒') }, ['browserId']),
       annotations: READ,
       async handler({ browserId, url, waitForSelector }) {
@@ -527,6 +530,7 @@ export function buildTools(version) {
 export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊运营本地工具。
 - 会话开始先调 xander_status。配置与档案默认本地保存，凭证由本机密钥后端管理；业务数据按所选接口和模型的实际路径传输。
 - 读数据、计算、记本地档案可直接做；改亚马逊必须：xander_prepare_change → 把表格给用户看并取得明确批准 → xander_execute_change → 结果核对。
+- 紫鸟：xander_ziniao_snapshot 只读；要点击/填写页面，走 xander_prepare_change 的 ziniao.control 提案（用户开“紫鸟控制”开关并批准后执行，再用 snapshot 核对）。
 - 写入开关默认全关，只有用户能在 \`xander panel\` 打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
 - 新建活动、广告组和广告商品默认暂停；新增关键词的启用状态按精确提案核对。多步创建可能部分成功。未知结果只核验，不能换提案重提。
 - 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。

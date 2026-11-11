@@ -106,6 +106,7 @@ export function startMock() {
       const idKey = `${singular}Id`;
       if (action === 'query') {
         if (!body?.adProductFilter?.include?.length) return json(400, { message: 'adProductFilter required' });
+        if (body.adProductFilter.include.includes('SPONSORED_PRODUCTS') && body.maxResults > 1000) return json(400, { message: 'maxResults must be less than or equal to 1000' });
         const f = (k, v) => !body[k] || body[k].include.map(String).includes(String(v));
         const items = Object.values(coll).filter((o) => body.adProductFilter.include.includes(o.adProduct)
           && f(`${idKey}Filter`, o[idKey]) && f('adGroupIdFilter', o.adGroupId) && f('campaignIdFilter', o.campaignId)

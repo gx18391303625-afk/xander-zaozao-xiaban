@@ -12,11 +12,11 @@
 
 用 `xander_switches` 查看完整列表和参数。当前包括：
 
-- SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）。
+- SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）、新增否定 ASIN（与否定关键词同一开关，广告组级或活动级）。
 - SB 品牌推广（Ads API v1）：活动开/停与日预算、投放竞价与开/停。
 - SD 展示型（Beta，暂用原 SD 接口）：活动开/停与预算、投放竞价与开/停。
 - Listing：标题/Item Highlights 亮点/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。亮点对应 `title_differentiation`，标题对应 `item_name`；使用真实商品类型定义和 Amazon 预校验确认字段支持，不能互相替代。
-- 紫鸟浏览器代操作（`ziniao.control`，单独开关）。
+- 紫鸟浏览器代操作（`ziniao.control`，单独开关）：`xander_ziniao_snapshot` 只读；要点击/填写，用 `xander_prepare_change` 提交 `{op:"ziniao.control", browserId, description, steps:[…]}`，用户打开开关并明确批准后执行，再用 snapshot 核对。动作 goto/click/clickText/type/press/wait，goto 仅限亚马逊后台网址。
 
 - FBA 入仓（`fba.inbound`，独立开关）：美国站计划、装箱/分仓、运输、窗口、跟踪与标签/提单，每份提案仅一个动作；具体边界见 [FBA 入仓](../../../docs/fba-inbound.md)。
 
@@ -29,6 +29,7 @@
 ```json
 {"op":"ads.sp.target.bid","targetId":"123456","value":0.85,"reason":"近14天ACoS 62%，高于盈亏线45%"}
 {"op":"ads.sp.negativeKeyword.create","campaignId":"1","adGroupId":"2","keywordText":"cat bowl","matchType":"EXACT","reason":"花费$18无单，与产品无关"}
+{"op":"ads.sp.negativeKeyword.create","adGroupId":"2","asin":"B0XXXXXXXX","reason":"竞品 ASIN 花费无单"}
 {"op":"ads.sp.campaign.budget","campaignId":"1","value":30,"reason":"…"}
 {"op":"listing.attribute","sku":"BOWL-BLUE","attribute":"bullet_point","value":["…","…","…","…","…"],"reason":"…"}
 {"op":"listing.attribute","sku":"BOWL-BLUE","attribute":"title_differentiation","languageTag":"en_US","value":"已批准的亮点原文","reason":"仅更新已批准的 Item Highlights"}

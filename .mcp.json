@@ -2,9 +2,9 @@
   "mcpServers": {
     "xander": {
       "type": "stdio",
-      "command": "node",
+      "command": "/bin/sh",
       "args": [
-        "${PLUGIN_ROOT}/server/index.js"
+        "${PLUGIN_ROOT}/server/launch.sh"
       ],
       "cwd": "${PLUGIN_ROOT}"
     }

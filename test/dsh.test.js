@@ -212,7 +212,7 @@ test('DSH manifest, resources and package-relative skill root preserve the other
   }
   const mcp = JSON.parse(fs.readFileSync(path.join(root, '.mcp.json'), 'utf8'));
   assert.equal(mcp.mcpServers.xander.type, 'stdio');
-  assert.deepEqual(mcp.mcpServers.xander.args, ['${PLUGIN_ROOT}/server/index.js']);
+  assert.deepEqual(mcp.mcpServers.xander.args, ['${PLUGIN_ROOT}/server/launch.sh']);
   const patch = fs.readFileSync(path.join(root, manifest.dsh.bundle.patch), 'utf8');
   assert.match(patch, /includeDefaultRoots: false/);
   assert.match(patch, /providerName: xander-zaozao-xiaban/);

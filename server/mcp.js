@@ -48,7 +48,13 @@ export function startServer({ name, version, instructions, tools }) {
       const tool = byName.get(params?.name);
       if (!tool) return fail(-32602, `Unknown tool: ${params?.name}`);
       try {
-        const result = await tool.handler(params.arguments || {});
+        const args = params.arguments || {};
+        const props = tool.inputSchema?.properties;
+        if (tool.inputSchema?.additionalProperties === false && props && args && typeof args === 'object') {
+          const unknown = Object.keys(args).filter((k) => !Object.hasOwn(props, k));
+          if (unknown.length) throw new Error(`${tool.name} 不认识这些参数：${unknown.join('、')}。可用参数：${Object.keys(props).join('、')}。${tool.argumentHint || ''}`);
+        }
+        const result = await tool.handler(args);
         return reply({ content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }] });
       } catch (e) {
         return reply({ content: [{ type: 'text', text: `出错了：${e.message}` }], isError: true });
