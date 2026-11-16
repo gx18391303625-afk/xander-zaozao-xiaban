@@ -30,4 +30,15 @@ test('升版本后同步全部清单与固定版本来源，历史版本说明�
   for (const f of ['README.md', 'docs/dsh.md']) assert.ok(!fs.readFileSync(path.join(dir, f), 'utf8').includes(`v${old}`), f);
   assert.ok(fs.readFileSync(path.join(dir, 'README.md'), 'utf8').includes('#v99.0.1'));
   assert.equal(readme.match(/v2\.5\.1/g)?.length, fs.readFileSync(path.join(dir, 'README.md'), 'utf8').match(/v2\.5\.1/g)?.length);
+
+  // 预发布版本：同步后检查必须通过，再同步也不会重复追加后缀
+  for (const version of ['99.0.2-rc.0', '99.0.2-rc.1', '99.0.2']) {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ ...pkg, version }));
+    syncVersion({ dir });
+    syncVersion({ dir });
+    assert.deepEqual(syncVersion({ dir, check: true }).stale, [], version);
+    const dsh = fs.readFileSync(path.join(dir, 'docs/dsh.md'), 'utf8');
+    assert.ok(dsh.includes(`releases/download/v${version}/xander-zaozao-xiaban-${version}.tgz`), version);
+    assert.ok(!/-rc\.\d+-rc/.test(dsh) && !/99\.0\.2-rc\.\d+[^\s/*.\]>)]/.test(dsh), version);
+  }
 });

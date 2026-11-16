@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFESTS = ['plugin.json', '.claude-plugin/plugin.json', '.codex-plugin/plugin.json'];
 // 文档里只认固定版本来源的写法，避免误改“从 v2.5.1 起支持”这类历史版本说明。
-const V = String.raw`\d+\.\d+\.\d+`;
+const V = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;
 const pin = (before, after = '') => new RegExp(`(${before})${V}(${after})`, 'g');
 const DOCS = {
   'README.md': [pin('xander-zaozao-xiaban#v')],
