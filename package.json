@@ -34,7 +34,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gx18391303625-afk/xander-zaozao-xiaban.git"
+    "url": "git+https://github.com/gx18391303625-afk/xander-zaozao-xiaban.git"
   },
   "keywords": [
     "amazon",
