@@ -448,7 +448,7 @@ export function buildTools(version) {
     // ---------------- 写入：开关、提案、执行、回读 ----------------
     {
       name: 'xander_switches',
-      description: '查看写入开关（只读）。每项写入能力都有一个开关，默认全关；只有用户本人能在开关面板（终端运行 `xander panel`）里打开。AI 不能、也不要尝试替用户打开。',
+      description: '查看写入开关（只读）。每项写入能力都有一个开关，默认全关；只有用户本人能在开关面板（`xander panel`，或支持的 DSH「设置 → Xander」）里打开。AI 不能、也不要尝试替用户打开。',
       inputSchema: S({}),
       annotations: LOCAL_READ,
       async handler() {
@@ -456,7 +456,7 @@ export function buildTools(version) {
         return out({
           ...sw,
           operations: OPS.map((o) => ({ op: o.id, label: o.label, params: o.params, capability: o.capability || 'api', requirements: o.requirements, limitation: o.limitation })),
-          howToTurnOn: '请用户在终端运行 `xander panel` 打开本地开关面板，自己点开需要的开关。',
+          howToTurnOn: '请用户在终端运行 `xander panel`，或在支持的 DSH 中打开「设置 → Xander」，自己点开需要的开关。',
         });
       },
     },
@@ -531,7 +531,7 @@ export const INSTRUCTIONS = `Xander（自用）早早下班小助手：亚马逊
 - 会话开始先调 xander_status。配置与档案默认本地保存，凭证由本机密钥后端管理；业务数据按所选接口和模型的实际路径传输。
 - 读数据、计算、记本地档案可直接做；改亚马逊必须：xander_prepare_change → 把表格给用户看并取得明确批准 → xander_execute_change → 结果核对。
 - 紫鸟：xander_ziniao_snapshot 只读；要点击/填写页面，走 xander_prepare_change 的 ziniao.control 提案（用户开“紫鸟控制”开关并批准后执行，再用 snapshot 核对）。
-- 写入开关默认全关，只有用户能在 \`xander panel\` 打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
+- 写入开关默认全关，只有用户能在 \`xander panel\` 或支持的 DSH「设置 → Xander」里打开；AI 不得尝试替用户打开开关、修改开关文件或运行开关命令。
 - 新建活动、广告组和广告商品默认暂停；新增关键词的启用状态按精确提案核对。多步创建可能部分成功。未知结果只核验，不能换提案重提。
 - 图片贡献回读不代表零售页已换图。A+草稿/关联/审核/批准/发布记录分别报告，发布记录缺版本不能宣称当前修订已发布。
 - 优惠券只有准备、网页交接与官方只读查询。HANDOFF_READY不代表已提交。宿主电脑操控仅在有工具且用户允许前台操作时使用，不强依赖紫鸟。

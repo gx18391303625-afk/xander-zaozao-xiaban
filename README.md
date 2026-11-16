@@ -53,11 +53,13 @@
   codex plugin marketplace add gx18391303625-afk/xander-zaozao-xiaban
   ```
   然后在 ChatGPT 桌面版的“插件”目录里安装。找不到的话见 [手动安装](docs/新手接入教程.md#8-手动安装备用)。
-- DSH Desktop（`^0.2.1-rc.5`）：在插件管理器的“来源”输入框填固定版本来源，由插件管理器安装，不手工改 profile：
+- DSH Desktop（`^0.2.2-rc.3`）：在插件管理器的“来源”输入框填固定版本来源，由插件管理器安装，不手工改 profile：
   ```text
-  github:gx18391303625-afk/xander-zaozao-xiaban#v2.9.2
+  github:gx18391303625-afk/xander-zaozao-xiaban#v2.10.0
   ```
-  也可用 GitHub Release 安装包或本地仓库绝对目录。DSH 使用原生 `xander_*` 工具，不另启 Xander MCP 子进程。安装、只读验收、重复旧 MCP 的确认后停用和市场收录说明见 **[DSH 接入指南](<docs/dsh.md>)**。GitHub 发布不等于已获市场审核通过。
+  也可用 GitHub Release 安装包或本地仓库绝对目录。**v2.10.0 起可直接在「设置 → Xander」逐项打开／关闭能力**：macOS 风格滑动开关、分组卡片、搜索与深浅色主题；完整面板仍在原网页。这个设置入口仅 DSH 显示，Claude / Codex 原有入口不变。
+
+  DSH 使用原生 `xander_*` 工具，不另启 Xander MCP 子进程。安装、只读验收、重复旧 MCP 的确认后停用和市场收录说明见 **[DSH 接入指南](<docs/dsh.md>)**。GitHub 发布不等于已获市场审核通过。
 
 **3. 接入店铺**：下载本仓库（或在插件目录里），由你本人在自己的终端运行；密钥和令牌只在 `xander setup` 输入，不贴进聊天：
 ```
@@ -71,6 +73,8 @@ xander doctor       # 体检：逐项测试是否接通
 ```
 xander panel
 ```
+DSH 用户也可直接打开 **设置 → Xander** 管理能力开关，不需要先运行终端命令；完整面板仍可用上面的命令打开。Claude / Codex 继续使用原有终端面板。
+
 安装不会自动打开写入权限。只做 DSH 安装验收时不需要开任何开关；正式使用的首次演练由你自行决定，建议先打开“演练模式”，再开一个低风险开关（比如“新增否定关键词”）把完整流程走一遍。
 
 ## 2.5 经营诊断与行动复盘
@@ -155,7 +159,7 @@ reports/          下载的报表
 |---|---|---|
 | Claude Code | ✅ 插件自动加载 | ✅ |
 | Codex CLI / ChatGPT 桌面版 | ✅ | ✅ |
-| DSH（`^0.2.1-rc.5`） | 官方 filesystem provider 注册 7 个包内技能，不写用户技能目录 | 原生 `xander_*`，无额外 MCP 子进程；[固定版本安装与验收](<docs/dsh.md>)，市场收录另行审核 |
+| DSH（`^0.2.2-rc.3`） | 官方 filesystem provider 注册 7 个包内技能，不写用户技能目录 | 原生 `xander_*`，无额外 MCP 子进程；[固定版本安装与验收](<docs/dsh.md>)，市场收录另行审核 |
 | Claude 桌面版 | 手动上传技能 | ✅ 手动配置 |
 | 网页版 ChatGPT / claude.ai | ❌ | ❌ 连不到你电脑上的本地服务；本地插件不代表业务数据不会按接口或模型传输 |
 

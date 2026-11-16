@@ -198,7 +198,7 @@ test('DSH manifest, resources and package-relative skill root preserve the other
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.equal(manifest.main, './dsh/index.js');
   assert.equal(manifest.dsh.bundle.patch, './dsh/cordis.patch.yml');
-  assert.equal(manifest.engines.dsh, '^0.2.1-rc.5');
+  assert.equal(manifest.engines.dsh, '^0.2.2-rc.3');
   assert.ok(manifest.files.includes('dsh'));
   assert.equal(manifest.icon, 'assets/icon.svg');
   assert.ok(fs.statSync(path.join(root, manifest.icon)).size < 256 * 1024);

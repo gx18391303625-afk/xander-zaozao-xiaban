@@ -2,6 +2,14 @@
 
 ## 未发布
 
+## 2.10.0 — 2026-11-16
+
+- DSH 专属功能：最低 DSH 版本提高到 `^0.2.2-rc.3`，设置页已在 Desktop `0.2.2-rc.3` 验证。仍为同一多宿主包，Claude / Codex 保留原有 MCP 与终端面板入口，不加载 DSH 前端。
+- DSH 新增「设置 → Xander」原生能力开关页：苹果系统风格滑动开关、分组卡片、搜索、深浅色主题和保存回读反馈。与原网页共用状态及审计；完整面板按需另开，不搬运业务页、不重置原有开关。
+- 原生开关桥限制已认证的 owner 浏览器，检查 CSRF、严格布尔参数与旧版本冲突；无开关写工具或 session command，无一键全开。该门禁不宣称能防御同源脚本或同机任意代码；所有开关仍由用户本人决定。
+- 完整网页入口适配 Desktop 外部浏览器打开，并保留弹窗受限时的普通链接；原面板监听失败改为可捕获的 Promise 拒绝，不再因异步抛错影响共享 DSH Host，端口冲突回退前清理旧监听器。
+- 验证：592 项 Node 回归与全部技能 Python 回归通过；真实 Desktop 检查深浅色与搜索。未代用户改变任何真实开关或执行亚马逊写入。
+
 - 版本号只认 `package.json`：新增 `scripts/sync-version.mjs`，`npm version patch|minor|major` 会自动同步 `plugin.json`、Claude/Codex 清单与 README、DSH 文档里的固定版本来源；`npm run check:version` 只检查。
 - 发布前必须通过测试：新增 CI（推送 main 与 PR 时运行版本一致检查、`npm test`、技能 Python 回归测试 `npm run test:py`）；打标签发布时先跑同一套 CI，并核对标签与 `package.json` 版本一致，否则不发布。发布用的 npm 固定为 11.21.1，不再用 `latest`。
 - 新增广告经济线一致性测试：MCP 快速计算器（`lib/calc.js`）与技能完整模型（`calculate_ad_economics.py`，策略包校验也用它）在同样输入下，盈亏平衡/目标 ACoS 与 CPC 必须一致，防止两边口径漂移。两者职责不同（快速单件线 vs. 含促销/Vine/库存的完整模型），都保留。

@@ -50,7 +50,7 @@ description: "Xander 早早下班小助手总协调：亚马逊店铺日常运�
 
 1. `xander_prepare_change` 生成精确提案（它会先读当前值、查安全上限、Listing 先让亚马逊预校验）。
 2. 把返回的新旧值表格**完整**给用户看，等用户对**这一份**提案明确说“批准/执行”。“帮我优化一下”“可以试试”不算批准。
-3. 相关开关没开：告诉用户在终端运行 `xander panel` 自己打开。**你不能替用户开开关，不能改开关文件，不能运行 `xander switch on`。**
+3. 相关开关没开：告诉用户在终端运行 `xander panel`，或在支持的 DSH 中打开「设置 → Xander」，自己打开。**你不能替用户开开关，不能改开关文件，不能运行 `xander switch on`。**
 4. `xander_execute_change`（只执行一次）→ 看回读结果。`OUTCOME_UNKNOWN` 绝不重发，只能 `xander_verify_change` 查清楚。
 5. 新建广告、广告位加价、预算规则/投资组合、图片、A+、优惠券按 [2.3 功能使用说明](../../docs/v2.3-features.md) 的真实范围执行。先用 `xander_switches` 查看参数和能力限制。
 6. FBA 入仓按 [FBA 入仓流程](../../docs/fba-inbound.md) 执行：`xander_fba_inbound` 只查，`fba.inbound` 每份提案一个动作。当前仅支持美国站先装箱；分仓、合作承运费用和箱唛生成分别批准。异步回执不等于完成，核验成功后才能准备下一步。

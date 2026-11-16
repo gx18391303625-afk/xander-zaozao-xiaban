@@ -82,17 +82,24 @@ export function startPanel({ port = 8765, open = true } = {}) {
     }
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const tryListen = (p) => {
-      server.once('error', (e) => {
-        if (e.code === 'EADDRINUSE' && p !== 0) tryListen(0);
-        else throw e;
-      });
-      server.listen(p, '127.0.0.1', () => {
+      const onError = (error) => {
+        server.off('error', onError);
+        server.off('listening', onListening);
+        if (error.code === 'EADDRINUSE' && p !== 0) tryListen(0);
+        else reject(error); // Also safe when hosted inside a shared DSH process.
+      };
+      const onListening = () => {
+        server.off('error', onError);
         const address = `http://127.0.0.1:${server.address().port}/#t=${token}`;
         if (open) openBrowser(address);
         resolve({ server, address });
-      });
+      };
+      server.once('error', onError);
+      server.once('listening', onListening);
+      try { server.listen(p, '127.0.0.1'); }
+      catch (error) { onError(error); }
     };
     tryListen(port);
   });

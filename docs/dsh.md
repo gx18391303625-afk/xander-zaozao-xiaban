@@ -1,6 +1,6 @@
 # DSH 接入指南
 
-本文对应根包 `xander-zaozao-xiaban` **2.9.2** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
+本文对应根包 `xander-zaozao-xiaban` **2.10.0** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
 
 **DSH 原生适配从 v2.5.1 起提供。** GitHub 版本发布与市场收录是两个独立步骤：可按下方固定版本来源安装，市场是否已收录以目录实际状态为准。本文是安装与验收说明，不表示已经完成真实店铺验证。
 
@@ -8,13 +8,13 @@
 
 | 项目 | 范围 |
 |---|---|
-| DSH | 首批支持声明为 `^0.2.1-rc.5`；其他范围需另行验证 |
+| DSH | v2.10.0 起要求 `^0.2.2-rc.3`，原生设置页已在 Desktop `0.2.2-rc.3` 验证；旧 DSH 请先升级，不绕过版本门禁 |
 | Node.js | `>=22.13`；DSH Desktop 可使用其自带 Node 运行时，无需为原生插件另起 Node 服务 |
 | 包入口 | [package.json](<../package.json>) 的 `dsh.bundle.patch` 为 `./dsh/cordis.patch.yml`，根 `main` / `exports` 指向 `./dsh/index.js` |
 | 工具 | 通过 `ctx.tools.register` 直接复用 [server/tools.js](<../server/tools.js>) 的同一 handler；原生工具名保留 `xander_*`，不启动额外 Xander MCP 子进程 |
 | 挂载位置 | 只挂载一份全局 Host 插件；不要在多个 Agent 预设重复挂载。重复实例会明确拒绝，避免一个实例卸载时关闭另一个实例使用的数据库 |
 | 技能 | 官方 filesystem provider 从包内注册 7 个技能；不复制到 `~/.dsh/skills`，参考资料与脚本也留在包内 |
-| 页面 | 不增加 DSH 专属业务页面；原有 `xander panel` 仍是独立的本机安全面板 |
+| 页面 | v2.10.0 起在「设置 → Xander」提供原生能力开关页；完整面板仍在独立网页，不把业务页嵌入 DSH |
 | 预设 | 包内声明一个可选的「亚马逊运营」agent 预设 `preset-amazon`（2.7.0 起）。工具条目与 shipped `preset-standard` 同名同序，只在 persona 里写死“开场查 `xander_status`、沾亚马逊话题先加载 `xander-operations`”。默认预设不变，安装不会替你切换 |
 
 凭证、配置、档案保存在本地；授权与业务请求会访问用户所选的接口，进入对话的业务数据也会按 DSH 所选模型传输。启用可选云备份时，加密档案会传到用户自己的 S3。**不能将“本地插件”理解为“所有数据绝不离开电脑”。**
@@ -30,21 +30,21 @@ Claude Code、Codex CLI / ChatGPT 桌面版与 Claude 桌面版的原有入口�
 
 **不要为运行中的 Desktop 切换或改写 profile，也不要手工修改它的包配置或 Cordis 补丁。** 安装、启停、升级和卸载均通过当前 Desktop 的插件管理器处理。
 
-### 固定版本来源：v2.9.2
+### 固定版本来源：v2.10.0
 
 在当前 Desktop 插件管理器的“来源”输入框填入以下来源：
 
 ```text
-github:gx18391303625-afk/xander-zaozao-xiaban#v2.9.2
+github:gx18391303625-afk/xander-zaozao-xiaban#v2.10.0
 ```
 
 也可以直接使用该版本的 Release 安装包：
 
 ```text
-https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.9.2/xander-zaozao-xiaban-2.9.2.tgz
+https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.10.0/xander-zaozao-xiaban-2.10.0.tgz
 ```
 
-请先核对 [v2.9.2 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.9.2>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
+请先核对 [v2.10.0 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.10.0>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
 
 ### 非 Desktop 的本地 DSH CLI
 
@@ -114,7 +114,17 @@ Client Secret、Refresh Token、AWS 密钥、紫鸟密码和授权回跳地址�
 
 **停止 / 超时不等于撤回：** DSH 停止或工具超时不能撤回已经提交的 Amazon 请求。不要自动重试；若结果未知，先保留 `proposalId`，按该提案核验提交状态与平台回读，再由用户决定后续动作，不能把取消当成“未执行”。
 
-开关面板继续由用户在终端开启：
+### 原生能力开关页（v2.10.0 起，仅 DSH）
+
+在 **设置 → Xander** 查看、搜索并逐项开关能力。页面采用圆润滑动开关、分组卡片和宿主深浅色主题；保存以 Host 回读状态为准。加载失败或状态未确认时禁用操作；发现其他页面已更新时重新读取，不自动覆盖或重试写入。
+
+- 与原网页复用同一份开关和审计历史，不复制配置、不改变默认值，也不重置原有开关。
+- 仅提供逐项能力开关；不新增一键全开、安全上限修改、提案审批或亚马逊直接执行入口。
+- 点击「打开完整网页」才按需启动一份本机面板；报表、档案等运营能力不搬进设置页。这个按钮打开的是 Xander 现有完整面板，能力以原网页为准，不代表提供了新的报表可视化页面。
+- Host 桥要求已认证的 DSH owner 浏览器身份、请求信任检查及 CSRF 令牌，排除普通 API Peer；不注册任何开关写工具或 session command。**这不是针对同源脚本、浏览器自动化或同机任意代码的强安全沙箱**；AI 仍必须遵守不得代用户开关的规则。
+- 替换已经加载的插件后，按插件管理器结果重启 DSH；重新打开设置。仅刷新页面不能保证 Host JavaScript 已更新。当前参考实现核对版本为 DSH Desktop `0.2.2-rc.3`，不代表所有历史版本或远程部署均已验收。
+
+原有完整开关面板仍可由用户在终端开启：
 
 ```sh
 xander panel
@@ -153,4 +163,4 @@ xander panel
 - 本次 DSH 适配与最小验收不等于真实店铺验收；尚未据此对真店创建广告、改竞价、修改 Listing 或图片、提交 A+、创建优惠券或执行 FBA 入仓写入。
 - 合成接口、离线契约与模拟测试不能证明真实账户具备所有角色、广告权限、品牌或商品资格；SD 等 Beta 能力仍保持原有边界。
 - 原有接口版本、报表兼容性、紫鸟页面变化及卖家精灵套餐限制仍存在，见 [README 的已知限制](<../README.md#已知限制与待验证>)。
-- 未验证超出 `^0.2.1-rc.5` 支持声明的 DSH 版本、其他远程部署或所有平台组合，不据此承诺兼容。
+- 当前声明的 DSH 支持范围为 `^0.2.2-rc.3`，真实界面验收版本为 Desktop `0.2.2-rc.3`；其他远程部署或所有平台组合未逐一实测，不据此承诺兼容。

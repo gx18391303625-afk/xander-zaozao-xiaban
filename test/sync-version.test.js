@@ -14,8 +14,13 @@ test('仓库当前版本一致', () => {
   assert.deepEqual(syncVersion({ check: true }).stale, []);
 });
 
-test('升版本后同步全部清单与固定版本来源，历史版本说明不动', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xander-version-'));
+test('升版本后同步全部清单与固定版本来源，历史版本说明不动', (t) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'xander-version-')));
+  t.after(() => {
+    assert.equal(path.dirname(dir), fs.realpathSync(os.tmpdir()));
+    assert.match(path.basename(dir), /^xander-version-/);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
   for (const f of FILES) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.copyFileSync(path.join(root, f), path.join(dir, f)); }
   const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
   const old = pkg.version;
@@ -27,8 +32,16 @@ test('升版本后同步全部清单与固定版本来源，历史版本说明�
   syncVersion({ dir });
   assert.deepEqual(syncVersion({ dir, check: true }).stale, []);
   for (const f of FILES.slice(1, 4)) assert.equal(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).version, '99.0.1', f);
-  for (const f of ['README.md', 'docs/dsh.md']) assert.ok(!fs.readFileSync(path.join(dir, f), 'utf8').includes(`v${old}`), f);
-  assert.ok(fs.readFileSync(path.join(dir, 'README.md'), 'utf8').includes('#v99.0.1'));
+  // Only installation pins change. A feature introduced in the current release
+  // remains historical truth even after that same version becomes the old one.
+  const syncedReadme = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
+  const syncedDsh = fs.readFileSync(path.join(dir, 'docs/dsh.md'), 'utf8');
+  assert.ok(!syncedReadme.includes(`#v${old}`));
+  assert.ok(!syncedDsh.includes(`### 固定版本来源：v${old}`));
+  assert.ok(!syncedDsh.includes(`releases/download/v${old}/`));
+  assert.ok(!syncedDsh.includes(`releases/tag/v${old}`));
+  assert.deepEqual(syncedReadme.match(/v\d+\.\d+\.\d+ 起/g), readme.match(/v\d+\.\d+\.\d+ 起/g));
+  assert.ok(syncedReadme.includes('#v99.0.1'));
   assert.equal(readme.match(/v2\.5\.1/g)?.length, fs.readFileSync(path.join(dir, 'README.md'), 'utf8').match(/v2\.5\.1/g)?.length);
 
   // 预发布版本：同步后检查必须通过，再同步也不会重复追加后缀

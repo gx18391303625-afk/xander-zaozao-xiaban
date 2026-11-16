@@ -1,6 +1,6 @@
 {
   "name": "xander-zaozao-xiaban",
-  "version": "2.9.2",
+  "version": "2.10.0",
   "description": "Xander（自用）早早下班小助手：给亚马逊个人卖家用的本地运营插件，支持 DSH、Claude 和 Codex（GPT）。",
   "type": "module",
   "license": "MIT",
@@ -9,12 +9,25 @@
   "exports": {
     ".": "./dsh/index.js",
     "./package.json": "./package.json",
+    "./settings": "./dsh/settings.js",
+    "./client": "./dsh/client.js",
+    "./settings/locale/*.json": "./dsh/locale/*.json",
+    "./settings/icon": "./assets/icon.svg",
     "./locale/*.json": "./dsh/locale/*.json",
     "./icon": "./assets/icon.svg"
   },
   "dsh": {
     "bundle": {
       "patch": "./dsh/cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-connection"
+      ]
     }
   },
   "bin": {
@@ -22,7 +35,7 @@
   },
   "engines": {
     "node": ">=22.13",
-    "dsh": "^0.2.1-rc.5"
+    "dsh": "^0.2.2-rc.3"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
