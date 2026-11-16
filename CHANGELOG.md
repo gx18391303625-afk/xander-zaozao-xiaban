@@ -1,5 +1,12 @@
 # 更新记录
 
+## 未发布
+
+- 版本号只认 `package.json`：新增 `scripts/sync-version.mjs`，`npm version patch|minor|major` 会自动同步 `plugin.json`、Claude/Codex 清单与 README、DSH 文档里的固定版本来源；`npm run check:version` 只检查。
+- 发布前必须通过测试：新增 CI（推送 main 与 PR 时运行版本一致检查、`npm test`、技能 Python 回归测试 `npm run test:py`）；打标签发布时先跑同一套 CI，并核对标签与 `package.json` 版本一致，否则不发布。发布用的 npm 固定为 11.21.1，不再用 `latest`。
+- 新增广告经济线一致性测试：MCP 快速计算器（`lib/calc.js`）与技能完整模型（`calculate_ad_economics.py`，策略包校验也用它）在同样输入下，盈亏平衡/目标 ACoS 与 CPC 必须一致，防止两边口径漂移。两者职责不同（快速单件线 vs. 含促销/Vine/库存的完整模型），都保留。
+- README 安全说明改准确：默认“对话审批”靠 AI 遵守流程；开关与提案是本机文件，AI 若有终端/改文件权限，技术上能绕过。补充 Claude Code 禁止 AI 改数据目录的权限配置、Codex 沙箱建议，以及何时临时切到“面板审批”。默认审批方式不变。
+
 ## 2.9.2 — 2026-11-16
 
 - 统一版本号：`package.json`、`plugin.json`、Claude 与 Codex 插件清单四处清单以及 DSH 接入文档、README 固定版本来源全部对齐到 2.9.2。npm 2.9.1 发布包里 `plugin.json` 仍是 2.9.0，本版修正该不一致。

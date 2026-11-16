@@ -27,6 +27,9 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "test:dsh": "node --test test/dsh.test.js",
+    "test:py": "for f in skills/*/scripts/run_regression_tests.py; do python3 \"$f\" || exit 1; done",
+    "check:version": "node scripts/sync-version.mjs --check",
+    "version": "node scripts/sync-version.mjs && git add plugin.json .claude-plugin/plugin.json .codex-plugin/plugin.json README.md docs/dsh.md",
     "mcp": "node server/index.js",
     "panel": "node cli/xander.js panel",
     "setup": "node cli/xander.js setup",
