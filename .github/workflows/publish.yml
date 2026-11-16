@@ -4,12 +4,10 @@ on:
   push:
     tags:
       - "v*"
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -28,5 +26,20 @@ jobs:
       - name: Upgrade npm (trusted publishing support)
         run: npm install -g npm@latest
 
-      - name: Publish
+      - name: Publish to npm
         run: npm publish --provenance --access public
+
+      - name: Build release assets
+        run: |
+          npm pack
+          sha256sum ./*.tgz > SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Xander ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            ./*.tgz
+            SHA256SUMS.txt

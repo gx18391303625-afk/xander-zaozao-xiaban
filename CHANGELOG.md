@@ -1,5 +1,15 @@
 # 更新记录
 
+## 2.9.2 — 2026-11-16
+
+- 统一版本号：`package.json`、`plugin.json`、Claude 与 Codex 插件清单四处清单以及 DSH 接入文档、README 固定版本来源全部对齐到 2.9.2。npm 2.9.1 发布包里 `plugin.json` 仍是 2.9.0，本版修正该不一致。
+- 新增 npm 自动发布：打 `v*` 标签即由 GitHub Actions 以 Trusted Publishing（OIDC，无 token）发布，并附带 SLSA provenance 与 GitHub Release 安装包、校验值。
+- 固定版本来源更新为 `v2.9.2`；GitHub Release 附件改为随标签自动生成。功能与 2.9.0 / 2.9.1 一致，无行为改动。
+
+## 2.9.1 — 2026-11-14
+
+- 接入 npm 自动发布链路（Trusted Publishing + GitHub Actions），并首次由 CI 发布验证；仅发布流程变化，无功能改动。
+
 ## 2.9.0 — 2026-11-08
 
 - 新增长期规则：记档案时 `kind=rule` 记用户定下的口径、偏好和红线（如“先排除站外促销订单再判断站内表现”），每次读档案都会全部带上，不再被大量进度流水挤掉；用户撤销时用 `action=done` 停用。
