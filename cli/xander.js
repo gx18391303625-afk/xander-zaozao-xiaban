@@ -26,7 +26,7 @@ const HELP = `${c.bold(`Xander（自用）早早下班小助手 v${VERSION}`)}
   xander install            只显示 Claude / Codex / DSH 安装方法，不执行安装
   xander mcp                启动 MCP 服务（供 Claude/Codex；DSH 原生接入不使用）
 
-DSH：兼容 ^0.2.1-rc.5，Node.js >=22.13（Desktop 可用自带 Node 运行时）。
+DSH：兼容 ^0.2.2-rc.3，Node.js >=22.13（Desktop 可用自带 Node 运行时）。
   DSH 从 v2.5.1 起支持原生接入：Desktop 插件管理器的“来源”填固定版本 GitHub 来源或本地仓库绝对目录，见 docs/dsh.md。
   不为运行中的 Desktop 改 profile 或手工编辑包配置；只读验收用 xander_status(check=false)、xander_switches({})。
   凭证只由用户在自己的终端运行 xander setup 输入；安装不会自动打开写入权限，面板仍用 xander panel。
@@ -111,8 +111,10 @@ async function doctor() {
   } else console.log('  - 紫鸟：未配置');
 
   title('写入开关');
-  const on = listSwitches().items.filter((x) => x.on);
-  if (on.length) on.forEach((x) => warn(`已打开：${x.label}（${x.id}）`)); else ok('全部关闭（最安全）');
+  const permissions = listSwitches().items;
+  const active = permissions.filter((item) => item.on === true || item.partial);
+  if (active.length) active.forEach((item) => warn(`${item.partial ? `部分开启 ${item.enabledOperations}/${item.totalOperations}，保留旧授权` : '已打开'}：${item.label}（${item.id}）`));
+  else ok('全部关闭（最安全）');
   console.log(c.dim(`\n设置：审批=${cfg.settings.approvalMode === 'panel' ? '面板' : '对话'}，演练模式=${cfg.settings.dryRun ? '开' : '关'}`));
 }
 
@@ -131,7 +133,8 @@ async function switchCmd() {
   const sub = args[0] || 'list';
   if (sub === 'list') {
     for (const it of listSwitches().items) {
-      console.log(`${it.on ? c.green('● 开') : c.dim('○ 关')}  ${it.implemented ? '' : c.dim('[规划中] ')}${it.label}  ${c.dim(it.id)}`);
+      const status = it.partial ? c.yellow(`◐ 部分开启 ${it.enabledOperations}/${it.totalOperations}`) : it.on === true ? c.green('● 开') : c.dim('○ 关');
+      console.log(`${status}  ${it.label}  ${c.dim(it.id)}`);
     }
     return;
   }
@@ -143,10 +146,20 @@ async function switchCmd() {
     const a = await ask(`确认要${what}？请输入“确认”两个字`);
     if (a !== '确认') throw new Error('已取消');
   };
-  if (sub === 'on') { const id = args[1]; if (!id) throw new Error('用法：xander switch on <开关ID>'); await needHuman(`打开 ${id}`); setSwitch(id, true, 'cli'); console.log(c.green(`已打开 ${id}`)); return; }
-  if (sub === 'off') { const id = args[1]; if (!id) throw new Error('用法：xander switch off <开关ID>'); setSwitch(id, false, 'cli'); console.log(`已关闭 ${id}`); return; }
+  const requireMaster = (id) => {
+    const item = listSwitches().items.find(row => row.id === id && row.implemented);
+    if (!item) throw new Error('请使用四个总开关 ID：ads.manage、listing.manage、fba.inbound、ziniao.control；旧细分 ID 不再作为终端授权入口。');
+    return item;
+  };
+  if (sub === 'on') {
+    const item = requireMaster(args[1]);
+    console.log(`${item.label}：${item.description}\n${item.limitation}`);
+    await needHuman(`统一打开「${item.label}」全部 ${item.totalOperations} 项现有操作权限（不批准具体执行）`);
+    setSwitch(item.id, true, 'cli'); console.log(c.green(`已打开 ${item.label}`)); return;
+  }
+  if (sub === 'off') { const item = requireMaster(args[1]); setSwitch(item.id, false, 'cli'); console.log(`已关闭 ${item.label}`); return; }
   if (sub === 'all-off') { setAll(false, { by: 'cli' }); console.log('已全部关闭'); return; }
-  if (sub === 'all-on') { await needHuman(args.includes('--with-ziniao') ? '打开常规写入开关及紫鸟（不含 FBA 物流和网页交接）' : '打开常规写入开关（不含 FBA 物流、紫鸟和网页交接）'); setAll(true, { by: 'cli' }); if (args.includes('--with-ziniao')) setSwitch('ziniao.control', true, 'cli'); console.log(c.green('已全部打开')); return; }
+  if (sub === 'all-on') throw new Error('不再提供一键全开；请分别确认四个总权限的范围后开启。');
   throw new Error(`不认识的子命令：${sub}`);
 }
 

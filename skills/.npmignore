@@ -1,0 +1,4 @@
+# Skill regression tests generate interpreter-specific bytecode; ship sources only.
+__pycache__/
+*.pyc
+*.pyo

@@ -8,6 +8,7 @@
 - `campaigns_summary` 也按天返回，下载后不会自动汇总期间总计；先核对日期覆盖，再按账户/站点、广告产品、活动和币种聚合。期间比率用汇总后的分子和分母重算，详见 [取数方法](../../xander-operations/references/data-workflow.md)。
 - 快速经济线：`xander_calc_ad_economics`；广告表现复核：先 `xander_ads_report` collect 得到日维度报表文件，再用 `xander_ads_report_rows`（传 file、entityType、current/baseline 窗口、profile 时区）自动汇总成 `reviewInput`，原样交给 `xander_review_ad_performance` 重算指标并形成待核行动；不要手工抄报表行，不自动调整账户。需要利润/库存判断时只在对应行补已核实的 economics/inventory。完整计算与策略包校验用本技能 scripts 里的 Python 脚本（宿主能执行代码时）。
 - 未知数字是 null，不是 0；第三方估算标 ESTIMATED；模拟结果标 SIMULATED / NOT LIVE。用简洁中文回答。
+- v2.11.0 起的广告统一授权 ID 为 `ads.manage`，包括 SP 账户总预算；不是 23 个独立用户开关，也不是可用于提案的 `op`。`xander_switches` 核对总权限与具体操作的实际状态；旧混合授权不得自动扩展，不把历史版本清单当成新版已加载。
 - 改账户只走 [写入安全](../../xander-operations/references/write-safety.md)：`xander_prepare_change` → 用户批准这一份 → `xander_execute_change` → 回读。可用操作：SP 活动开停/日预算、广告组开停/默认竞价、投放竞价/开停（关键词、商品、自动投放统一用 targetId）、广告商品开停、新增关键词、新增否词（广告组级/活动级）；SB 活动开停/日预算、投放竞价/开停；SD 活动开停/预算、投放竞价/开停（原接口）。SP 新建、位置加价、预算规则和投资组合按 [当前工具范围](../../../docs/v2.3-features.md) 及 `xander_switches` 的实际参数使用。预算时间规则不等于分时竞价；本版没有排程 bid 的写入操作。开关只有用户能开。
 - 选品已冻结：新建结构化策略包时 `lineage_mode` 用 `INDEPENDENT_NEW`（新品）或 `INDEPENDENT_EXISTING`（老品），不要新建 `FULL_WORKFLOW`；历史完整链路按原证据保留。旧“交回 `$select-amazon-products`”应按根因改路由：利润核算交 `reconcile-amazon-profit`，在售库存/补货交 `plan-amazon-replenishment`；超出这些运营范围的产品定位、合规或立项判断交用户复核，本插件不做选品（见 [追溯规则](../../xander-operations/references/lineage-and-selection.md)）。
 

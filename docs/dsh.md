@@ -1,6 +1,6 @@
 # DSH 接入指南
 
-本文对应根包 `xander-zaozao-xiaban` **2.10.0** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
+本文对应根包 `xander-zaozao-xiaban` **2.11.0** 的 DeepSeek Harness（DSH）适配。它与 Claude / Codex 共用同一根包，不是另一个 Xander 包。
 
 **DSH 原生适配从 v2.5.1 起提供。** GitHub 版本发布与市场收录是两个独立步骤：可按下方固定版本来源安装，市场是否已收录以目录实际状态为准。本文是安装与验收说明，不表示已经完成真实店铺验证。
 
@@ -30,21 +30,21 @@ Claude Code、Codex CLI / ChatGPT 桌面版与 Claude 桌面版的原有入口�
 
 **不要为运行中的 Desktop 切换或改写 profile，也不要手工修改它的包配置或 Cordis 补丁。** 安装、启停、升级和卸载均通过当前 Desktop 的插件管理器处理。
 
-### 固定版本来源：v2.10.0
+### 固定版本来源：v2.11.0
 
 在当前 Desktop 插件管理器的“来源”输入框填入以下来源：
 
 ```text
-github:gx18391303625-afk/xander-zaozao-xiaban#v2.10.0
+github:gx18391303625-afk/xander-zaozao-xiaban#v2.11.0
 ```
 
 也可以直接使用该版本的 Release 安装包：
 
 ```text
-https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.10.0/xander-zaozao-xiaban-2.10.0.tgz
+https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/download/v2.11.0/xander-zaozao-xiaban-2.11.0.tgz
 ```
 
-请先核对 [v2.10.0 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.10.0>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
+请先核对 [v2.11.0 发布页](<https://github.com/gx18391303625-afk/xander-zaozao-xiaban/releases/tag/v2.11.0>) 中的版本、安装包和校验值；若标签或附件暂不可获取，不把失败当成安装成功。安装 GitHub 来源不要求先有 npm 发行，市场收录与官方 Discover 索引另见第 6 节。
 
 ### 非 Desktop 的本地 DSH CLI
 
@@ -64,7 +64,7 @@ dsh plugin --profile <profile> add <目录/来源>
 
 1. 新会话第一个动作调用 `xander_status`（只读），先看已接入的店铺、站点和写入开关状态；
 2. 只要话题沾亚马逊（店铺、ASIN/SKU、广告、关键词、Listing、图片、A+、优惠券、库存、补货、FBA、利润、竞品），**即使没提 Xander**，也先加载 `xander-operations` 技能，再按它的路由表加载模块技能，最后用 `xander_*` 取真实数据作答；
-3. 改亚马逊只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读；写入开关仍只能由用户在 `xander panel` 打开。
+3. 改亚马逊只走 `xander_prepare_change` → 用户对那一份提案明确批准 → `xander_execute_change` → 回读；写入开关仍只能由用户在 `xander panel` 或支持的 DSH「设置 → Xander」里打开。
 
 **它不减少任何能力**：预设的 21 个插件条目与 shipped `preset-standard` 同名同序，subagent、subagent_fork、workflow、计划模式、goal、todo、schedule、web、plugin_manager 都在，唯一差别是 persona。预设只声明，不挂载第二份 Xander Host 实例，不改工具、开关、审批方式、档案或已存提案。
 
@@ -116,13 +116,17 @@ Client Secret、Refresh Token、AWS 密钥、紫鸟密码和授权回跳地址�
 
 ### 原生能力开关页（v2.10.0 起，仅 DSH）
 
-在 **设置 → Xander** 查看、搜索并逐项开关能力。页面采用圆润滑动开关、分组卡片和宿主深浅色主题；保存以 Host 回读状态为准。加载失败或状态未确认时禁用操作；发现其他页面已更新时重新读取，不自动覆盖或重试写入。
+v2.10.0 引入了 **设置 → Xander**，当时提供细分逐项开关、搜索、圆润滑动按钮、分组卡片和宿主深浅色主题。**v2.11.0 将其统一为以下四个实际总权限**；v2.10.0 历史安装包本身不具备这个新行为。
 
-- 与原网页复用同一份开关和审计历史，不复制配置、不改变默认值，也不重置原有开关。
-- 仅提供逐项能力开关；不新增一键全开、安全上限修改、提案审批或亚马逊直接执行入口。
+#### 四个实际总权限（v2.11.0）
+
+- 只管理「广告」（`ads.manage`，23 项，含 SP 账户总每日预算）、「链接」（`listing.manage`，6 项，含价格、促销交接与 FBM 库存）、「FBA 货件」（`fba.inbound`）、「紫鸟」（`ziniao.control`）。细分操作只作范围说明及精确提案，不再提供子开关，见[四总权限说明](<four-master-switches.md>)。
+- 与原网页复用同一份旧权限及审计。新数据目录默认全关；已有组内混合权限显示“部分开启”，不是完全开启或关闭。读取不写、不自动统一权限，只有用户选择总权限才统一本组。
+- 保存以 Host 回读状态为准；加载失败、状态未知或 Host 仍是旧细开关协议时禁止直接操作，应先加载匹配的新 Host。发现其他页面已更新时重新读取，不自动覆盖或重试写入。
+- 不提供一键全开、安全上限修改、提案审批或亚马逊直接执行入口；四总权限不代替逐份精确提案批准。
 - 点击「打开完整网页」才按需启动一份本机面板；报表、档案等运营能力不搬进设置页。这个按钮打开的是 Xander 现有完整面板，能力以原网页为准，不代表提供了新的报表可视化页面。
 - Host 桥要求已认证的 DSH owner 浏览器身份、请求信任检查及 CSRF 令牌，排除普通 API Peer；不注册任何开关写工具或 session command。**这不是针对同源脚本、浏览器自动化或同机任意代码的强安全沙箱**；AI 仍必须遵守不得代用户开关的规则。
-- 替换已经加载的插件后，按插件管理器结果重启 DSH；重新打开设置。仅刷新页面不能保证 Host JavaScript 已更新。当前参考实现核对版本为 DSH Desktop `0.2.2-rc.3`，不代表所有历史版本或远程部署均已验收。
+- 升级到 v2.11.0 后须完整退出并重新启动 DSH，再打开设置并用 `xander_status(check=false)`、`xander_switches({})` 只读核对。仅刷新页面不能保证 Host JavaScript 已更新；若还使用 MCP 或原网页，分别重启 MCP 服务、关闭旧面板和终端后重新运行新版 `xander panel`。两端确认提交采用 `masters-v1` 兼容标识，新 Host 拒绝旧格式请求，不自动将旧页面点击提升为整组授权，详见[升级核对](<four-master-switches.md#升级到-v2110-后先重启并核对>)。此前验收基于 DSH Desktop `0.2.2-rc.3`；[验收历史](<dsh-settings-verification.md>)保留当时的 Host 缓存和未实测边界，不代表本次发行已完成真实 GUI 冷加载全流程验证。
 
 原有完整开关面板仍可由用户在终端开启：
 
@@ -134,7 +138,7 @@ xander panel
 
 ## 5. 更新、停用与卸载
 
-- **更新本地适配：** 保留仓库路径，先核对新版本来源，再通过 Desktop 插件管理器更新同一根包。替换已加载版本后如提示重启，应按提示重启；不能把文件已更新当作运行时代码已替换。公开发布后的更新同样先确认目标 tag 或 commit。
+- **更新本地适配：** 保留仓库路径，先核对新版本来源，再通过 Desktop 插件管理器更新同一根包。升级到 v2.11.0 后须完整退出并重启当前 DSH，再只读核对实际版本；不能把文件已更新或页面已刷新当作运行时代码已替换。公开发布后的更新同样先确认目标 tag 或 commit。
 - **停用 / 卸载：** 通过 Desktop 插件管理器停用或卸载 Xander。不要手动改 profile 包配置，也不要用删业务数据目录代替卸载。
 - **业务数据保留：** 更新和卸载不删除 `~/.xander-zaozao/`（或 `XANDER_HOME` 指定目录）的配置、开关、档案、提案、日志和报表，也不主动清除本机保存的凭证。再次安装仍应核对原有开关状态。若需彻底清理，须用户另行明确确认，先备份。
 - **技能不落用户目录：** 包内技能随插件分发，不需要清理 `~/.dsh/skills` 中的包副本；用户曾手工复制的技能属于用户资源，不自动删。卸载后的包技能可见性应重新核验，用户同名技能仍可能存在。
@@ -149,7 +153,7 @@ xander panel
 - awesome 目录、网页和使用该目录的 dsh-market 可收录 GitHub Release 的 `.tgz` 安装包，不要求先发布 npm。
 - 该目录导出的官方 DSH Discover format-1 索引目前另要求匹配仓库的 npm 包、精确版本和发布时间；只有 GitHub Release 不保证出现在官方 Discover。
 - 如果自动探测到同仓库的 npm 发行，市场可能优先推荐 npm，而非条目中的 tarball。维护者应核对 npm 版本是否同样含 DSH 适配，不能拿旧 npm 版本代替新 Release。
-- 本次发行使用固定版本的 GitHub 来源与安装包；npm 发行属于单独的公开发布操作，不自动执行。
+- 本文档与安装操作本身不触发发布。当前仓库在维护者明确授权并推送 `v*` tag 后，由既有 CI 工作流通过 Trusted Publishing（OIDC）自动发布 npm，并建立 GitHub Release、上传安装包及校验值；GitHub、npm 与附件的成功状态仍须分别核验。
 
 ### 维护者发布清单
 

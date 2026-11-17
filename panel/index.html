@@ -41,7 +41,7 @@ button.ghost { background: transparent; }
 .group { margin-top: 14px; }
 .group-title { font-size: 12px; color: var(--muted); letter-spacing: .04em; margin: 0 0 6px; }
 .row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-top: 1px solid var(--line); }
-.row:first-of-type, #ziniaoBox .row { border-top: 0; }
+.row:first-of-type { border-top: 0; }
 .row .label { flex: 1; min-width: 0; }
 .row .label .name { font-weight: 560; }
 .row .label .meta { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; word-break: break-all; }
@@ -89,6 +89,31 @@ dialog p { margin: 0 0 12px; }
 dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
 .err { background: var(--brand-soft); color: var(--brand); padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; display: none; }
+
+.master-permission + .master-permission { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.master-permission .row { border: 0; align-items: flex-start; }
+.master-permission .name { margin: 0; font-size: 16px; }
+.master-permission .meta { word-break: normal !important; line-height: 1.7; margin-top: 4px; }
+.master-permission .partial-note { color: var(--warn); }
+.master-permission details { margin: 0 4px 12px; color: var(--muted); font-size: 12px; }
+.master-permission summary { cursor: pointer; width: fit-content; }
+.master-permission ul { padding-left: 20px; line-height: 1.8; }
+.master-control { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
+.master-state { font-size: 11px; color: var(--muted); }
+.master-switch { display: grid; place-items: center; width: 54px; min-height: 44px; padding: 8px 2px; border: 0; border-radius: 12px; background: transparent; }
+.master-switch .track { display: block; position: relative; width: 50px; height: 28px; border-radius: 999px; background: var(--off); transition: background .2s; }
+.master-switch .track::before { content: ''; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s; }
+.master-switch[aria-checked='true'] .track { background: var(--on); }
+.master-switch[aria-checked='true'] .track::before { transform: translateX(22px); }
+.master-switch[aria-checked='mixed'] .track { outline: 1px dashed var(--warn); outline-offset: -1px; }
+.master-switch[aria-checked='mixed'] .track::before { transform: translateX(11px); }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+#masterDialog { max-height: 85vh; overflow: auto; }
+#masterDialogOperations { max-height: 180px; overflow: auto; padding-left: 20px; font-size: 12px; line-height: 1.8; }
+#masterDialog .actions { flex-wrap: wrap; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
@@ -97,22 +122,20 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
     <div class="logo">早</div>
     <div>
       <h1>早早下班 · 写入开关面板 <span class="sub" id="version"></span></h1>
-      <div class="sub">开着的灯 = 允许 AI 在你批准后执行这一类改动。关着的灯，AI 连提案都执行不了。</div>
+      <div class="sub">只管理广告、链接、FBA 货件和紫鸟四项权限；开启权限不等于批准执行。</div>
     </div>
     <div class="spacer"></div>
     <span class="pill" id="onCount">已开 <b>0</b> 项</span>
     <span class="pill" id="mode">审批：<b>对话</b></span>
   </header>
-  <div class="err" id="err"></div>
+  <div class="err" id="err" role="alert"></div>
 
   <div class="grid">
     <section class="card">
-      <h2>功能与写入开关</h2>
-      <p class="hint">全部默认关闭。建议只开你现在要用的那几项，用完关掉。“Beta”表示按官方文档实现、还没在大量真实账户上验证过，第一次用建议先开演练模式。</p>
-      <div class="bar">
-        <button class="primary" id="allOn">一键全开</button>
-        <button id="allOff">一键全关</button>
-      </div>
+      <h2>四个权限总开关</h2>
+      <p class="hint">新安装默认关闭。每个总开关统一控制其完整范围；旧状态部分开启时保留原有授权，不会自动扩权。具体改动仍须逐份精确提案并批准。</p>
+      <div class="bar"><button id="refreshState">刷新权限状态</button></div>
+      <p class="hint" id="permissionStatus" role="status" aria-live="polite"></p>
       <div id="groups"></div>
     </section>
 
@@ -122,12 +145,6 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
         <p class="hint">最近保存的诊断和实验计划，只读展示，不是当前账户状态或已执行证明。告诉 AI“诊断这个 ASIN，并把行动与复盘记下来”即可开始；不需要手填大表。</p>
         <div id="decisionHistory"></div>
       </section>
-      <section class="card ziniao">
-        <h2>紫鸟浏览器控制</h2>
-        <p class="hint">允许 AI 通过紫鸟浏览器打开你的店铺后台、读取页面，并在你批准后代为点击和填写。只在官方接口做不到时使用。不跟随“一键全开”。</p>
-        <div id="ziniaoBox"></div>
-      </section>
-
       <section class="card">
         <h2>执行方式</h2>
         <p class="hint">“面板审批”更安全：AI 生成的提案必须在下面点“批准”才能执行。</p>
@@ -168,14 +185,17 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   </div>
 </div>
 
-<dialog id="dlg">
+<dialog id="masterDialog" aria-labelledby="masterDialogTitle" aria-describedby="masterDialogMeaning">
   <form method="dialog">
-    <h2 style="margin-top:0">一键全开？</h2>
-    <p>这会打开所有已实现的官方 API 写入开关（不包括 FBA 物流、紫鸟和网页交接）。打开后，AI 生成的提案只要你批准就能执行，涉及广告预算、竞价、Listing 文案和售价。</p>
-    <label class="check"><input type="checkbox" id="understand"> 我明白：每次执行前我都会认真看提案里的新旧值。</label>
+    <h2 id="masterDialogTitle" style="margin-top:0">确认完整授权范围</h2>
+    <p id="masterDialogMeaning"></p>
+    <p class="hint" id="masterDialogWarning"></p>
+    <details><summary>完整操作范围（只读）</summary><ul id="masterDialogOperations"></ul></details>
+    <p class="hint">这只改变可用权限，不批准任何亚马逊改动。取消则保持原有授权。</p>
     <div class="actions">
       <button value="cancel">取消</button>
-      <button value="ok" class="primary" id="dlgOk" disabled>确认全开</button>
+      <button value="off" id="masterDialogOff">统一关闭全部</button>
+      <button value="on" class="ok" id="masterDialogOn">统一开启全部</button>
     </div>
   </form>
 </dialog>
@@ -185,6 +205,41 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
 const token = new URLSearchParams(location.hash.slice(1)).get('t');
 const $ = (id) => document.getElementById(id);
 let S = null;
+let actionBusy = false;
+let stateUsable = false;
+let readSequence = 0;
+let pendingSwitch = null;
+let renderedPermissionRevision = null;
+let renderedZiniaoConfigured = null;
+const MASTER_SWITCH_IDS = ['ads.manage', 'listing.manage', 'fba.inbound', 'ziniao.control'];
+const MASTER_WARNINGS = {
+  'ads.manage': '包含 SP／SB／SD、活动预算与 SP 账户总每日预算、竞价、投放、否词、预算规则及投资组合。',
+  'listing.manage': '包含文案、图片、A+、售价、自发货库存，以及促销准备与网页交接；不会自动提交优惠券。',
+  'fba.inbound': '包含现有 FBA 入仓操作。分仓费、合作承运扣款、标签等仍须分别精确提案并批准。',
+  'ziniao.control': '只读打开和读取无需写入提案；代为点击或填写仍须精确提案和你的明确批准。',
+};
+
+function normalizePanelState(raw) {
+  if (!raw || typeof raw.revision !== 'string' || !raw.revision || !Array.isArray(raw.switches?.items)) throw new Error('权限状态不完整，请重开新版面板。');
+  const items = raw.switches.items;
+  if (items.length !== MASTER_SWITCH_IDS.length || new Set(items.map(item => item?.id)).size !== MASTER_SWITCH_IDS.length ||
+      items.some(item => !MASTER_SWITCH_IDS.includes(item?.id))) throw new Error('前后端权限版本不一致，请重开新版面板；旧的 31 项开关不会显示或自动合并开启。');
+  const operationIds = new Set();
+  for (const item of items) {
+    if (typeof item.label !== 'string' || typeof item.description !== 'string' || item.implemented !== true || typeof item.partial !== 'boolean' ||
+        !Number.isInteger(item.totalOperations) || item.totalOperations < 1 || !Number.isInteger(item.enabledOperations) ||
+        item.enabledOperations < 0 || item.enabledOperations > item.totalOperations || !Array.isArray(item.operations) || item.operations.length !== item.totalOperations) throw new Error('权限范围不完整，暂不可操作。');
+    for (const op of item.operations) {
+      if (!op || typeof op.id !== 'string' || !op.id || operationIds.has(op.id) || typeof op.label !== 'string' ||
+          op.implemented !== true || typeof op.on !== 'boolean') throw new Error('操作权限明细不完整，暂不可操作。');
+      operationIds.add(op.id);
+    }
+    const enabled = item.operations.filter(op => op.on === true).length;
+    const partial = enabled > 0 && enabled < item.totalOperations;
+    if (enabled !== item.enabledOperations || partial !== item.partial || item.on !== (partial ? null : enabled === item.totalOperations)) throw new Error('权限状态不一致，暂不可操作。');
+  }
+  return { ...raw, switches: { ...raw.switches, items: MASTER_SWITCH_IDS.map(id => items.find(item => item.id === id)) } };
+}
 
 const STATUS_CN = { PROPOSED: '待批准', EXECUTING: '执行中', API_STATE_VERIFIED: '已生效（接口回读一致）', AWAITING_READBACK: '已提交待核对', MISMATCH: '回读不一致', FAILED: '失败', OUTCOME_UNKNOWN: '结果未知', SKIPPED_STALE: '原值已变，已跳过', DRY_RUN: '演练', EXPIRED: '已过期', REJECTED: '已拒绝' };
 Object.assign(STATUS_CN, { SUBMITTING: '提交中，禁止重发', SUBMITTED: '已提交待回读', NOT_RUN: '未执行', PARTIALLY_SUCCEEDED: '部分完成，请核验', IMAGES_ACCEPTED: '图片贡献已接受', IMAGE_CONTRIBUTION_VERIFIED: '图片贡献已回读，页面待核验', DRAFT_CREATED: 'A+ 草稿已创建', CONTENT_UPDATED: 'A+ 内容已更新', ASINS_ASSOCIATED: 'ASIN 关联已核对', SUBMITTED_FOR_REVIEW: '已提交审核', APPROVED: '审核通过，发布待核验', PUBLISH_RECORD_FOUND: '发现发布记录，当前版本待核验', HANDOFF_READY: '资料就绪，需网页提交', PLATFORM_STATUS_OBSERVED: '已读平台状态，完整提案待核验' });
@@ -193,23 +248,39 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add
 function showErr(msg) { const e = $('err'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
 
 async function api(path, body) {
-  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Xander-Token': token || '', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.status);
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(path, { method: body ? 'POST' : 'GET', cache: 'no-store', redirect: 'error', signal: controller.signal,
+      headers: { 'X-Xander-Token': token || '', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json();
+    if (!res.ok) { const error = new Error(data.error || res.status); error.status = res.status; error.state = data.state; throw error; }
+    return data;
+  } finally { clearTimeout(timer); }
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function riskTag(r) { return r === '高' ? '<span class="tag high">高风险</span>' : r === '中' ? '<span class="tag mid">中风险</span>' : r === '低' ? '<span class="tag low">低风险</span>' : ''; }
 
 function rowHtml(it) {
-  const planned = !it.implemented;
-  return `<div class="row ${planned ? 'planned' : ''}">
-    <span class="lamp ${it.on ? 'on' : ''}"></span>
-    <div class="label"><div class="name">${esc(it.label)}${planned ? '<span class="tag beta">规划中</span>' : riskTag(it.risk)}${it.capability === 'handoff' ? '<span class="tag beta">需网页提交</span>' : ''}${it.beta ? '<span class="tag beta">Beta</span>' : ''}</div>
-      <div class="meta">${esc(it.id)}${it.changedAt ? ' · 上次切换 ' + new Date(it.changedAt).toLocaleString() : ''}</div>${it.limitation ? '<div class="meta">' + esc(it.limitation) + '</div>' : ''}${it.requirements ? '<div class="meta">' + esc(it.requirements) + '</div>' : ''}</div>
-    <label class="switch" title="${planned ? '还没实现' : (it.on ? '点击关闭' : '点击打开')}"><input type="checkbox" data-id="${esc(it.id)}" ${it.on ? 'checked' : ''} ${planned ? 'disabled' : ''} aria-label="${esc(it.label)}"><span></span></label>
-  </div>`;
+  const titleId = `master-${it.id}`;
+  const state = it.partial ? '部分开启' : it.on ? '已开启' : '已关闭';
+  return `<article class="master-permission" data-permission="${esc(it.id)}">
+    <div class="row"><div class="label">
+      <h3 class="name" id="${esc(titleId)}">${esc(it.label)}</h3>
+      <div class="meta" id="${esc(titleId)}-description">${esc(it.description)}</div>
+      <div class="meta">${it.partial ? '原有授权 ' + esc(it.enabledOperations) + ' / ' + esc(it.totalOperations) + ' 项，尚未统一' : '包含 ' + esc(it.totalOperations) + ' 项操作'}</div>
+      ${it.partial ? '<div class="meta partial-note">保留原有细分授权，未自动扩权。点按后明确选择统一开启或统一关闭。</div>' : ''}
+      ${it.id === 'ziniao.control' && !S.ziniaoConfigured ? '<div class="meta">尚未配置紫鸟：请在终端运行 <code>xander setup</code> → 紫鸟浏览器。</div>' : ''}
+    </div><div class="master-control">
+      <button class="master-switch" type="button" role="checkbox" aria-checked="${it.partial ? 'mixed' : it.on}" aria-labelledby="${esc(titleId)}" aria-describedby="${esc(titleId)}-description ${esc(titleId)}-state" data-master="${esc(it.id)}"><span class="track" aria-hidden="true"></span></button>
+      <span class="master-state" id="${esc(titleId)}-state">${state}</span>
+    </div></div>
+    <details><summary>查看完整范围（只读）</summary><p>${esc(MASTER_WARNINGS[it.id])}</p>
+      <ul>${it.operations.map(op => '<li>' + esc(op.label) + (it.partial ? ' — ' + (op.on ? '已开启' : '已关闭') : '') + '</li>').join('')}</ul>
+      ${it.limitation ? '<p>' + esc(it.limitation) + '</p>' : ''}${it.requirements ? '<p>' + esc(it.requirements) + '</p>' : ''}
+    </details>
+  </article>`;
 }
 
 function decisionHistoryHtml(history) {
@@ -236,16 +307,31 @@ function decisionHistoryHtml(history) {
     + `<p class="hint">${esc(history.note || '仅本地历史，不是当前账户状态。')} 每类最多展示最近3条，完整快照与追加复盘可让 AI 用查询工具读取。</p>`;
 }
 
+function renderPermissionControls(items) {
+  if (renderedPermissionRevision === S.revision && renderedZiniaoConfigured === S.ziniaoConfigured) return;
+  const group = $('groups');
+  const openScopes = new Set(Array.from(group.querySelectorAll('[data-permission]')).filter(node => node.querySelector('details')?.open).map(node => node.dataset.permission));
+  const active = document.activeElement;
+  const owner = group.contains(active) ? active.closest('[data-permission]') : null;
+  const focus = owner ? { id: owner.dataset.permission, scope: active.tagName === 'SUMMARY' } : null;
+  group.innerHTML = items.map(rowHtml).join('');
+  for (const node of group.querySelectorAll('[data-permission]')) {
+    const scope = node.querySelector('details');
+    if (scope) scope.open = openScopes.has(node.dataset.permission);
+    if (focus?.id === node.dataset.permission) (focus.scope ? node.querySelector('summary') : node.querySelector('[data-master]'))?.focus();
+  }
+  renderedPermissionRevision = S.revision;
+  renderedZiniaoConfigured = S.ziniaoConfigured;
+}
+
 function render() {
   $('version').textContent = `v${S.version}`;
   $('decisionHistory').innerHTML = decisionHistoryHtml(S.decisionHistory);
   const items = S.switches.items;
-  const normal = items.filter((x) => x.id !== 'ziniao.control');
-  const groups = [...new Set(normal.map((x) => x.group))];
-  $('groups').innerHTML = groups.map((g) => `<div class="group"><p class="group-title">${esc(g)}</p>${normal.filter((x) => x.group === g).map(rowHtml).join('')}</div>`).join('');
-  const z = items.find((x) => x.id === 'ziniao.control');
-  $('ziniaoBox').innerHTML = rowHtml(z) + (S.ziniaoConfigured ? '' : '<p class="hint" style="margin:6px 0 0">还没配置紫鸟：在终端运行 <code>xander setup</code> → 紫鸟浏览器。</p>');
-  $('onCount').innerHTML = `已开 <b>${items.filter((x) => x.on).length}</b> 项`;
+  renderPermissionControls(items);
+  const partial = items.filter(item => item.partial).length;
+  $('onCount').innerHTML = `已开 <b>${items.filter(item => item.on === true).length} / 4</b>${partial ? ' · 部分开启 ' + partial + ' 项' : ''}`;
+  $('permissionStatus').textContent = partial ? '部分开启的权限保留旧状态，尚未统一；不会自动打开其余操作。' : '四个总权限与 DSH 设置页共用状态，具体执行仍需提案批准。';
   $('mode').innerHTML = `审批：<b>${S.settings.approvalMode === 'panel' ? '面板' : '对话'}</b>${S.settings.dryRun ? ' · <b>演练中</b>' : ''}`;
   document.querySelectorAll('#approval button').forEach((b) => b.classList.toggle('active', b.dataset.v === S.settings.approvalMode));
   $('dryRun').checked = !!S.settings.dryRun;
@@ -262,29 +348,113 @@ function render() {
   $('ledger').innerHTML = S.ledger.length ? S.ledger.map((l) => `<div>${new Date(l.at).toLocaleString()} · <b>${esc(l.event)}</b> ${esc(l.op || '')} ${l.proposalId ? esc(l.proposalId) : ''} ${l.target ? esc(JSON.stringify(l.target)) : ''} ${l.error ? '· ' + esc(l.error) : ''}</div>`).join('') : '<p class="empty">暂无记录。</p>';
 }
 
-async function refresh() { try { S = await api('/api/state'); showErr(''); render(); } catch (e) { showErr(e.message); } }
-async function act(path, body, msg) { try { S = await api(path, body); render(); if (msg) toast(msg); } catch (e) { toast('失败：' + e.message); refresh(); } }
+function setBusy() {
+  document.querySelectorAll('button, input').forEach(node => { node.disabled = actionBusy || !stateUsable; });
+  // Refresh remains a read-only recovery action when authentication/state is unavailable.
+  $('refreshState').disabled = actionBusy;
+}
+
+function acceptState(raw) {
+  const next = normalizePanelState(raw);
+  S = next;
+  stateUsable = true;
+  render();
+  setBusy();
+}
+
+async function refresh({ force = false } = {}) {
+  if ((!force && actionBusy) || (!force && $('masterDialog').open)) return;
+  const sequence = ++readSequence;
+  try {
+    const next = await api('/api/state');
+    if (sequence !== readSequence) return;
+    acceptState(next);
+    showErr('');
+  } catch (error) {
+    if (sequence !== readSequence) return;
+    stateUsable = false;
+    showErr(error.message);
+  } finally { if (sequence === readSequence) setBusy(); }
+}
+
+async function act(path, body, msg) {
+  if (actionBusy || !stateUsable) return;
+  actionBusy = true;
+  ++readSequence;
+  setBusy();
+  try {
+    acceptState(await api(path, body));
+    showErr('');
+    if (msg) toast(msg);
+  } catch (error) {
+    stateUsable = false;
+    if (error.status === 409 && error.state) {
+      try { acceptState(error.state); showErr('权限已在其他页面变化，已载入最新状态。请核对后再操作；未自动重试。'); return; }
+      catch { /* Invalid conflict state requires a fresh read, never a write retry. */ }
+    }
+    await refresh({ force: true });
+    showErr('操作未确认：' + error.message + '。请核对当前状态后再操作；未自动重试。');
+  } finally { actionBusy = false; setBusy(); }
+}
+
+function focusMaster(id) {
+  const trigger = Array.from(document.querySelectorAll('[data-master]')).find(node => node.dataset.master === id);
+  const target = trigger && !trigger.disabled ? trigger : $('refreshState');
+  if (target && !target.disabled) target.focus();
+}
+
+function chooseMaster(id) {
+  if (actionBusy || !stateUsable || !MASTER_SWITCH_IDS.includes(id)) return;
+  const item = S.switches.items.find(row => row.id === id);
+  if (!item) return;
+  pendingSwitch = { item, revision: S.revision, targetOn: item.partial ? null : !item.on };
+  $('masterDialogTitle').textContent = `确认「${item.label}」的完整授权范围`;
+  $('masterDialogMeaning').textContent = item.partial
+    ? `当前部分开启（${item.enabledOperations} / ${item.totalOperations}）。请选择统一开启全部或统一关闭全部。`
+    : `将统一${item.on ? '关闭' : '开启'}「${item.label}」包含的全部 ${item.totalOperations} 项操作，不是只改其中一项。`;
+  $('masterDialogWarning').textContent = MASTER_WARNINGS[id];
+  $('masterDialogOperations').innerHTML = item.operations.map(op => '<li>' + esc(op.label) + (item.partial ? ' — ' + (op.on ? '已开启' : '已关闭') : '') + '</li>').join('');
+  $('masterDialogOn').hidden = pendingSwitch.targetOn === false;
+  $('masterDialogOff').hidden = pendingSwitch.targetOn === true;
+  $('masterDialog').returnValue = 'cancel';
+  $('masterDialog').showModal();
+}
+
+$('masterDialog').addEventListener('close', async () => {
+  const choice = pendingSwitch;
+  pendingSwitch = null;
+  if (!choice) return;
+  const result = $('masterDialog').returnValue;
+  if (result !== 'on' && result !== 'off') { focusMaster(choice.item.id); return; }
+  const targetOn = result === 'on';
+  if (!stateUsable || actionBusy || choice.revision !== S.revision || (choice.targetOn !== null && choice.targetOn !== targetOn)) {
+    showErr('确认期间权限状态已变化，请刷新核对后再操作；未提交。');
+    await refresh();
+    focusMaster(choice.item.id);
+    return;
+  }
+  await act('/api/switch', { id: choice.item.id, on: targetOn, expectedRevision: choice.revision, permissionModel: 'masters-v1' }, `已统一${targetOn ? '开启' : '关闭'}：${choice.item.label}`);
+  focusMaster(choice.item.id);
+});
 
 document.addEventListener('change', (e) => {
-  const id = e.target.dataset?.id;
-  if (id) act('/api/switch', { id, on: e.target.checked }, e.target.checked ? '已打开' : '已关闭');
   if (e.target.id === 'dryRun') act('/api/settings', { dryRun: e.target.checked }, e.target.checked ? '演练模式已开启' : '演练模式已关闭');
-  if (e.target.id === 'understand') $('dlgOk').disabled = !e.target.checked;
 });
 document.addEventListener('click', (e) => {
+  const master = e.target.closest('[data-master]');
+  if (master) { chooseMaster(master.dataset.master); return; }
   const a = e.target.dataset?.approve, r = e.target.dataset?.reject;
   if (a) act('/api/proposal', { id: a, decision: 'approve' }, '已批准，回到对话里让 AI 执行');
   if (r) act('/api/proposal', { id: r, decision: 'reject' }, '已拒绝');
   if (e.target.closest('#approval') && e.target.dataset.v) act('/api/settings', { approvalMode: e.target.dataset.v }, '已切换审批方式');
 });
-$('allOff').onclick = () => act('/api/all', { on: false }, '已全部关闭');
-$('allOn').onclick = () => { $('understand').checked = false; $('dlgOk').disabled = true; $('dlg').showModal(); };
-$('dlg').addEventListener('close', () => { if ($('dlg').returnValue === 'ok') act('/api/all', { on: true }, '已全部打开（FBA 物流、紫鸟与网页交接除外）'); });
+$('refreshState').onclick = () => { void refresh(); };
 $('saveLimits').onclick = () => act('/api/limits', Object.fromEntries(['bidChangePctMax', 'budgetChangePctMax', 'priceChangePctMax', 'maxChangesPerProposal'].map((k) => [k, Number($(k).value)])), '上限已保存');
 
 if (!token) showErr('缺少口令：请用终端里 `xander panel` 打印的完整网址打开。');
-refresh();
-setInterval(refresh, 5000);
+setBusy();
+void refresh();
+setInterval(() => { void refresh(); }, 5000);
 </script>
 </body>
 </html>

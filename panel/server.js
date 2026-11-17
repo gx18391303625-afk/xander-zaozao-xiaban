@@ -5,7 +5,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { listSwitches, setSwitch, setAll, setLimits } from '../lib/switches.js';
+import { listSwitches, setSwitch, setLimits } from '../lib/switches.js';
+import { switchGroup, PERMISSION_MODEL } from '../lib/switch-groups.js';
 import { loadConfig, updateConfig } from '../lib/config.js';
 import { listProposals, panelDecision, changeLog } from '../lib/proposals.js';
 import { getSecret } from '../lib/secrets.js';
@@ -17,9 +18,11 @@ const HTML_UNAVAILABLE = '<!doctype html><html lang="zh-CN"><meta charset="utf-8
 
 function state() {
   const cfg = loadConfig();
+  const switches = listSwitches();
   return {
     version: VERSION,
-    switches: listSwitches(),
+    switches,
+    revision: crypto.createHash('sha256').update(JSON.stringify(switches)).digest('hex'),
     settings: cfg.settings,
     stores: Object.fromEntries(Object.entries(cfg.stores).map(([k, s]) => [k, {
       region: s.region, marketplaces: s.marketplaces, sellerApi: !!getSecret(`spapi:${k}`), adsApi: !!getSecret(`ads:${k}`),
@@ -65,8 +68,21 @@ export function startPanel({ port = 8765, open = true } = {}) {
       let raw = '';
       for await (const chunk of req) { raw += chunk; if (raw.length > 100_000) return send(413, { error: 'too large' }); }
       const body = raw ? JSON.parse(raw) : {};
-      if (url.pathname === '/api/switch') setSwitch(body.id, !!body.on, 'panel');
-      else if (url.pathname === '/api/all') setAll(!!body.on, { includeSpecial: !!body.includeSpecial, by: 'panel' });
+      if (url.pathname === '/api/switch') {
+        if (!/^application\/json(?:\s*;|\s*$)/i.test(req.headers['content-type'] || '') ||
+            !body || typeof body !== 'object' || Array.isArray(body) ||
+            Object.keys(body).some(key => !['id', 'on', 'expectedRevision', 'permissionModel'].includes(key)) ||
+            body.permissionModel !== PERMISSION_MODEL ||
+            typeof body.id !== 'string' || typeof body.on !== 'boolean' ||
+            typeof body.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(body.expectedRevision)) {
+          return send(400, { error: '请重载新版权限面板并确认完整范围；请求需要 permissionModel、id、布尔值 on 和读取时的 expectedRevision。' });
+        }
+        const before = state();
+        const item = switchGroup(body.id) && before.switches.items.find(row => row.id === body.id && row.implemented);
+        if (!item) return send(400, { error: '只允许操作广告、链接、FBA 货件、紫鸟四个总开关，请刷新面板。' });
+        if (before.revision !== body.expectedRevision) return send(409, { error: '权限已在别处变化，请核对最新状态后再操作。', state: before });
+        if (item.on !== body.on) setSwitch(body.id, body.on, 'panel');
+      }
       else if (url.pathname === '/api/limits') setLimits(body, 'panel');
       else if (url.pathname === '/api/settings') {
         updateConfig((cfg) => {

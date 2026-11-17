@@ -94,9 +94,11 @@ test('否定商品：非法 ASIN、缺少层级被拒；readback 要求 ASIN 与
   assert.equal((await op.readback(getStore('main'), c, expected, { createdIds: [] })).match, false);
 });
 
-test('否定词合并为一个开关：无独立 negativeProduct 开关；两种填法互斥；旧名称仍可用', async () => {
+test('否定操作合入广告总权限：无独立 negativeProduct gate；两种填法互斥；旧名称仍可用', async () => {
   const { listSwitches } = await import('../lib/switches.js');
-  const items = listSwitches().items;
+  const masters = listSwitches().items;
+  assert.deepEqual(masters.map((item) => item.id), ['ads.manage', 'listing.manage', 'fba.inbound', 'ziniao.control']);
+  const items = masters.flatMap((item) => item.operations);
   assert.ok(!items.some((x) => /negativeProduct/.test(x.id)));
   assert.equal(items.find((x) => x.id === 'ads.sp.negativeKeyword.create').label, '新增否定关键词 / 否定 ASIN（广告组级 / 活动级）');
   const both = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.negativeKeyword.create', adGroupId: 'G1', asin: 'B0QQQQQQQQ', keywordText: 'x', matchType: 'EXACT' }] });

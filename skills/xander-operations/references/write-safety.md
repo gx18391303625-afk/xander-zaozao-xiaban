@@ -2,7 +2,7 @@
 
 ## 三道闸
 
-1. **开关**：每一类写入一个开关，默认全关。只有用户本人在 `xander panel`（或终端里手动确认的 `xander switch on`）能打开。你只能用 `xander_switches` 查看。不要尝试任何绕过方式（改 `switches.json`、在后台运行开关命令、调用面板接口）——这些都等于未经授权改动用户的账户。
+1. **开关**：v2.11.0 起只有「广告」`ads.manage`（23 项，含 SP 账户总预算）、「链接」`listing.manage`（6 项，含价格、促销交接、FBM 库存）、「FBA 货件」`fba.inbound`、「紫鸟」`ziniao.control` 四个实际总权限；新目录默认全关。旧细项有开有关时保留“部分开启”，不能误报全关或擅自统一。只有用户本人在 `xander panel`、支持的 DSH「设置 → Xander」或终端里手动确认 `xander switch on <总权限ID>` 才能打开；没有一键全开。你只能用 `xander_switches` 查看，不得用旧细分 `op` ID 代替总权限 ID。不要尝试任何绕过方式（改 `switches.json`、在后台运行开关命令、调用面板接口）——这些都等于未经授权改动用户的账户。旧 Host 清单须按实际版本核对，参见[四总权限说明](../../../docs/four-master-switches.md)。
 2. **精确提案 + 明确批准**：`xander_prepare_change` 生成的表格原样给用户看；用户对这一份提案说“批准/确认执行/可以执行”才算批准。“优化一下”“你看着办”“开了开关”“连接成功”都不是批准。
 3. **安全上限**：竞价、预算、售价单次改动超过面板里设的幅度，提案会直接被拒；需要大幅改动时让用户自己去面板调上限，并说明风险。
 
@@ -10,15 +10,15 @@
 
 ## 可用的写入操作（op）
 
-用 `xander_switches` 查看完整列表和参数。当前包括：
+用 `xander_switches` 查看四总权限及其具体操作范围和参数。总权限 ID 与以下精确 `op` ID 不可混用：`ads.manage`／`listing.manage` 不是提案动作；竞价、预算、改名等仍以细分 `op` 生成精确提案，不是另找子开关。当前包括：
 
-- SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）、新增否定 ASIN（与否定关键词同一开关，广告组级或活动级）。
+- SP 商品推广（Ads API v1）：活动开/停与日预算、广告组开/停与默认竞价、投放竞价与开/停（关键词、商品、类目、自动投放都是“投放 target”，用 targetId）、广告商品开/停（adId）、新增关键词、新增否定关键词（广告组级或活动级）、新增否定 ASIN（与否定关键词共用精确操作 ID，广告组级或活动级）；这些操作都归「广告」总权限，仍逐份提案审批。
 - SB 品牌推广（Ads API v1）：活动开/停与日预算、投放竞价与开/停。
 - SD 展示型（Beta，暂用原 SD 接口）：活动开/停与预算、投放竞价与开/停。
 - Listing：标题/Item Highlights 亮点/五点/描述/后台词（`listing.attribute`）、售价（`listing.price`）、自发货库存（`listing.fbmQuantity`）。亮点对应 `title_differentiation`，标题对应 `item_name`；使用真实商品类型定义和 Amazon 预校验确认字段支持，不能互相替代。
-- 紫鸟浏览器代操作（`ziniao.control`，单独开关）：`xander_ziniao_snapshot` 只读；要点击/填写，用 `xander_prepare_change` 提交 `{op:"ziniao.control", browserId, description, steps:[…]}`，用户打开开关并明确批准后执行，再用 snapshot 核对。动作 goto/click/clickText/type/press/wait，goto 仅限亚马逊后台网址。
+- 紫鸟浏览器代操作（`ziniao.control`，四总权限中的「紫鸟」）：`xander_ziniao_snapshot` 只读；要点击/填写，用 `xander_prepare_change` 提交 `{op:"ziniao.control", browserId, description, steps:[…]}`，用户打开开关并明确批准后执行，再用 snapshot 核对。动作 goto/click/clickText/type/press/wait，goto 仅限亚马逊后台网址。
 
-- FBA 入仓（`fba.inbound`，独立开关）：美国站计划、装箱/分仓、运输、窗口、跟踪与标签/提单，每份提案仅一个动作；具体边界见 [FBA 入仓](../../../docs/fba-inbound.md)。
+- FBA 入仓（`fba.inbound`，四总权限中的「FBA 货件」）：美国站计划、装箱/分仓、运输、窗口、跟踪与标签/提单，每份提案仅一个动作；具体边界见 [FBA 入仓](../../../docs/fba-inbound.md)。
 
 修改字段只提交获批范围；创建或流程动作按对应接口的完整精确请求审批。归档、删除不提供。新建广告、广告位、预算、图片、A+ 和优惠券按 [实际能力](../../../docs/v2.3-features.md) 执行；优惠券仍为网页交接，不能假称接口写入。
 

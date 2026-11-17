@@ -51,7 +51,7 @@ test('开关关着时：可以出提案，但不能执行', async () => {
   const pr = await prepareChange({ store: 'main', changes: [{ op: 'ads.sp.target.bid', targetId: '111', value: 1.2, reason: '测试' }] });
   assert.equal(pr.ok, true);
   assert.deepEqual(pr.switchesOff.length, 1);
-  await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /开关还关着/);
+  await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /总开关仍有未授权操作.*ads\.manage/);
   assert.equal(mock.state.targets['111'].bid.bid, 1.0, '不应改动');
 });
 

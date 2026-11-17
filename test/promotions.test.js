@@ -29,7 +29,7 @@ const plan = () => ({ promotionType: 'COUPON', title: 'Synthetic coupon', items:
 test('coupon preparation validates input, needs switch/approval, releases only a local handoff', async () => {
   const pr = await prepareChange({ store: 'main', changes: [{ op: 'promotions.coupon', value: plan() }] });
   assert.equal(pr.ok, true);
-  await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /开关还关着/);
+  await assert.rejects(executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true }), /总开关仍有未授权操作.*listing\.manage/);
   setSwitch('promotions.coupon', true);
   const before = calls.length;
   const r = await executeChange({ proposalId: pr.proposalId, hash: pr.hash, approved: true });

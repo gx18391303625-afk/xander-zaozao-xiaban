@@ -5,6 +5,7 @@
 ## 工具细节
 
 - 当前线上内容用 `xander_listing_get`（标题、亮点、五点、属性、issues、productType）；Item Highlights 亮点读取 `attributes.title_differentiation`，与标题 `item_name` 分开。无需生成提案即可独立读取。关键词证据来自关键词技能的交接或搜索查询表现报表。方法见 [取数方法](../../xander-operations/references/data-workflow.md)。
+- v2.11.0 起文案操作归「链接」总权限 `listing.manage`；它还含图片、A+、价格、促销交接和 FBM 库存，但本技能仍只处理文案，不得借总权限扩展任务范围。`listing.attribute` 是精确操作 ID，不再是独立用户开关；新旧 Host 按 `xander_switches` 实际状态核对，旧混合权限不自动统一。
 - 提交到亚马逊：按 [写入安全](../../xander-operations/references/write-safety.md)，用 `xander_prepare_change`（op=`listing.attribute`，attribute=item_name / title_differentiation / bullet_point / product_description / generic_keyword）。各字段都做 Amazon `VALIDATION_PREVIEW`；亮点额外检查目标商品类型真实 PTD 的字段支持与基础结构，完整条件规则由 Amazon 预校验。是否支持取决于实际站点与商品类型，不能仅凭当前值缺失断言不支持。`languageTag` 指定目标语言，保留其他站点、语言及未授权属性。用户批准这份提案后再 `xander_execute_change`，面板审批模式还须在面板批准；开关与演练设置只有用户能改。`DRY_RUN` 只记录，不正式提交；预校验通过也不等于发布。`AWAITING_READBACK` 时稍后 `xander_verify_change`。详见 [文案属性流程](../../../docs/listing-attributes.md)。
 - 与当前内容相同的变更不生成提案；如实报告“内容已一致”，不得为了演练制造文案差异，也不得当作本次修改成功。
 - 未知数字是 null，不是 0；模拟结果标 SIMULATED / NOT LIVE。

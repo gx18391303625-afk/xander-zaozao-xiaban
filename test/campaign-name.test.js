@@ -90,10 +90,12 @@ test.after(() => {
   fs.rmSync(testHome, { recursive: true, force: true });
 });
 
-test('campaign name is a separately registered API capability whose switch defaults off', async () => {
+test('campaign name remains an exact default-off API gate within the public advertising master', async () => {
   const { CAMPAIGN_NAME_OP } = await import('../lib/ops-ads-campaign-name.js');
   assert.equal(opById(OP), CAMPAIGN_NAME_OP);
-  const item = listSwitches().items.find((entry) => entry.id === OP);
+  const masters = listSwitches().items;
+  assert.ok(!masters.some((entry) => entry.id === OP), 'exact operation IDs are not public switches');
+  const item = masters.find((entry) => entry.id === 'ads.manage').operations.find((entry) => entry.id === OP);
   assert.equal(item.implemented, true);
   assert.equal(item.capability, 'api');
   assert.equal(item.on, false);

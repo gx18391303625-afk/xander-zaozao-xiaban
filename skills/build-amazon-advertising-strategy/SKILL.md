@@ -44,7 +44,7 @@ description: "核算亚马逊站内广告盈亏线，设计或审计 SP/SB/SD �
 
 ## 改账户
 
-只走一条路（[写入安全](../xander-operations/references/write-safety.md)）：`xander_prepare_change` 出精确提案 → 把新旧值表完整给用户 → 用户对这一份说“批准” → `xander_execute_change` → 看回读。“帮我优化一下”或开关已打开都不算批准；开关只有用户能开。`xander_switches` 里没有的动作（例如分时调价）直接说做不了并给手动步骤。可用操作和组合提案规则见 [core-rules.md](references/core-rules.md)。
+只走一条路（[写入安全](../xander-operations/references/write-safety.md)）：`xander_prepare_change` 出精确提案 → 把新旧值表完整给用户 → 用户对这一份说“批准” → `xander_execute_change` → 看回读。“帮我优化一下”或开关已打开都不算批准；开关只有用户能开。v2.11.0 起的 23 项广告操作（含 SP 账户总预算）统一归「广告」`ads.manage`，原细分 ID 只用于精确操作与审计，不是单独子开关；旧混合权限须按 `xander_switches` 实时状态判断，不能自动统一扩权。`xander_switches` 里没有的动作（例如分时调价）直接说做不了并给手动步骤。可用操作和组合提案规则见 [core-rules.md](references/core-rules.md)。
 
 ## 收尾
 

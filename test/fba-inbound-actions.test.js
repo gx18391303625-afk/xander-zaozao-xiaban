@@ -669,7 +669,7 @@ test('FBA labels obey real proposal approval gates, preserve the approved hash a
   await assert.rejects(execute({ approved: false }), /approved=true/);
   await assert.rejects(execute(), /面板审批/);
   panelDecision(proposal.proposalId, 'approve');
-  await assert.rejects(execute(), /开关还关着/);
+  await assert.rejects(execute(), /总开关仍有未授权操作.*fba\.inbound/);
   assert.equal(f.writes().length, 0);
   setSwitch(f.op.id, true, 'synthetic-test');
   assert.equal((await execute()).status, 'API_STATE_VERIFIED');

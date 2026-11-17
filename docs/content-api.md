@@ -1,6 +1,8 @@
 # Listing 图片与 A+ 内容
 
-核对日期：2026-10-27。实现位于 `lib/ops-content.js` 与 `lib/aplus-document.js`，契约及提案流程测试位于 `test/content.test.js`、`test/aplus-proposal-safety.test.js`。这两项能力走官方 SP-API，不依赖紫鸟。默认写入开关仍关闭；每一步都经过精确提案、审批、演练、提交和回读。
+核对日期：2026-10-27。实现位于 `lib/ops-content.js` 与 `lib/aplus-document.js`，契约及提案流程测试位于 `test/content.test.js`、`test/aplus-proposal-safety.test.js`。这两项能力走官方 SP-API，不依赖紫鸟。每一步都经过精确提案、审批、演练、提交和回读。
+
+**v2.11.0 总权限：** 图片 `listing.images` 和 A+ `aplus.content` 现统一归「链接」总权限（`listing.manage`），细分 ID 仍用于精确提案，不再是用户单独开启的子开关；新目录默认关，旧混合权限不自动扩展，见[四总权限说明](<four-master-switches.md>)。权限合并不改变下文图片和 A+ 的 API 范围，也不表示已在真实店铺完成业务写入验收。
 
 ## 资格与区域
 

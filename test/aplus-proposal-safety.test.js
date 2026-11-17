@@ -120,7 +120,7 @@ test('A+ update preparation and approval gates preserve the exact request, then 
   await assert.rejects(execute({ hash: 'synthetic-wrong-hash' }), /哈希不匹配/);
   await assert.rejects(execute(), /面板审批/);
   panelDecision(prepared.proposalId, 'approve');
-  await assert.rejects(execute(), /开关还关着/);
+  await assert.rejects(execute(), /总开关仍有未授权操作.*listing\.manage/);
   assert.equal(f.writes().length, 0);
   assert.equal(loadProposal(prepared.proposalId).status, 'PROPOSED');
   setSwitch(f.op.id, true, 'synthetic-test');

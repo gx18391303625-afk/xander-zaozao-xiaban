@@ -3,6 +3,7 @@
 // Connection owns authentication, request trust and Desktop's authenticated carrier.
 import crypto from 'node:crypto';
 import { listSwitches, setSwitch } from '../lib/switches.js';
+import { switchGroup, PERMISSION_MODEL } from '../lib/switch-groups.js';
 import { VERSION } from '../lib/version.js';
 
 export const inject = ['webServer', 'connection'];
@@ -106,13 +107,16 @@ export function createSettingsBridge(connection, {
         if (disposed || peer.signal.aborted || req.aborted) throw failure(503, '面板请求已失效，请重新打开。');
         return send(res, 200, { address: panel.address });
       }
-      if (Object.keys(body).some(key => !['id', 'on', 'expectedRevision'].includes(key)) ||
+      // Compatibility fence: an older Client must not treat one new master row
+      // as a narrow operation and enable the whole scope without its confirmation UI.
+      if (Object.keys(body).some(key => !['id', 'on', 'expectedRevision', 'permissionModel'].includes(key)) ||
+          body.permissionModel !== PERMISSION_MODEL ||
           typeof body.id !== 'string' || typeof body.on !== 'boolean' ||
           typeof body.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(body.expectedRevision)) {
-        throw failure(400, '开关请求需要有效的 id、布尔值 on 和读取时的版本。');
+        throw failure(400, '请重载新版权限面板并确认完整范围；请求需要 permissionModel、id、布尔值 on 和读取时的版本。');
       }
       const before = snapshot();
-      const item = before.switches.items.find(row => row.id === body.id && row.implemented);
+      const item = switchGroup(body.id) && before.switches.items.find(row => row.id === body.id && row.implemented);
       if (!item) throw failure(400, '这个开关不存在，或功能尚未开放。');
       if (before.revision !== body.expectedRevision) {
         return send(res, 409, { error: '开关已在别处更新，已为你重新读取；请核对后再操作。', state: before });

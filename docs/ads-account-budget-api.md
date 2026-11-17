@@ -5,7 +5,7 @@ Official reference: [Profiles](https://advertising.amazon.com/API/docs/en-us/ref
 - `GET /v2/profiles/{profileId}` reads profile identity and `dailyBudget`.
 - `PUT /v2/profiles` accepts an array containing only `{profileId, dailyBudget}`.
 - Only seller Sponsored Products is supported. No campaign, bid, placement, SB/SD, portfolio or average-daily-budget feature flag is submitted.
-- `xander_ads_account_budget` is read only. `ads.sp.account.budget` requires its own default-off switch and the existing prepare → approve → execute once → independent readback workflow.
+- `xander_ads_account_budget` is read only. In the **local unreleased four-permission revision**, `ads.sp.account.budget` remains the exact proposal operation ID but is included in the **Advertising** master permission (`ads.manage`), not a separate user-facing switch. New data directories default to off; existing mixed permissions are preserved rather than silently expanded. The existing prepare → approve → execute once → independent readback workflow is unchanged. See [four master permissions](<four-master-switches.md>); this note does not claim that a new package has been released.
 - Verify the configured marketplace, currency, seller identity and profile before preparing. Missing amounts are unknown, never zero. Changed bindings/old values and unresolved writes block mutation. Unknown receipts and transport failures require reconciliation, not resubmission.
 
 ## Live verification and limits (2026-11-04)

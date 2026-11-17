@@ -82,7 +82,8 @@ export function buildTools(version) {
         const sw = listSwitches();
         return out({
           version, dataDir: homeDir(), secretStore: backendLabel(), stores,
-          switchesOn: sw.items.filter((x) => x.on).map((x) => `${x.id}（${x.label}）`),
+          switchesOn: sw.items.filter((x) => x.on === true).map((x) => `${x.id}（${x.label}）`),
+          switchesPartial: sw.items.filter((x) => x.partial).map((x) => ({ id: x.id, label: x.label, enabledOperations: x.enabledOperations, totalOperations: x.totalOperations, note: '部分旧授权保留，不代表全部关闭或整组已授权。' })),
           safetyLimits: sw.limits, settings: cfg.settings,
           ziniao: { configured: !!cfg.ziniao?.enabled, controlSwitchOn: isOn('ziniao.control') },
           cloudBackup: cfg.sync?.enabled ? `S3：${cfg.sync.bucket}` : '未开启',
@@ -448,7 +449,7 @@ export function buildTools(version) {
     // ---------------- 写入：开关、提案、执行、回读 ----------------
     {
       name: 'xander_switches',
-      description: '查看写入开关（只读）。每项写入能力都有一个开关，默认全关；只有用户本人能在开关面板（`xander panel`，或支持的 DSH「设置 → Xander」）里打开。AI 不能、也不要尝试替用户打开。',
+      description: '查看广告、链接、FBA 货件、紫鸟四个总权限（只读），新安装默认全关。旧细分授权不自动扩大，partial 表示部分开启而非关闭；operations 是精确提案的操作说明，不是子开关。只有用户本人能在 xander panel 或 DSH「设置 → Xander」确认整组授权，AI 不得代开。',
       inputSchema: S({}),
       annotations: LOCAL_READ,
       async handler() {
@@ -456,7 +457,7 @@ export function buildTools(version) {
         return out({
           ...sw,
           operations: OPS.map((o) => ({ op: o.id, label: o.label, params: o.params, capability: o.capability || 'api', requirements: o.requirements, limitation: o.limitation })),
-          howToTurnOn: '请用户在终端运行 `xander panel`，或在支持的 DSH 中打开「设置 → Xander」，自己点开需要的开关。',
+          howToTurnOn: '请用户在 xander panel 或 DSH「设置 → Xander」确认广告、链接、FBA 货件、紫鸟的整组范围后自行授权；partial 旧状态须选择统一开或统一关。开启总权限不批准任何具体执行。',
         });
       },
     },

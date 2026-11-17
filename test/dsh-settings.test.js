@@ -12,6 +12,7 @@ const previousHome = process.env.XANDER_HOME;
 process.env.XANDER_HOME = path.join(temporary, 'isolated-data');
 const { createSettingsBridge, apply, inject } = await import('../dsh/settings.js');
 const { listSwitches } = await import('../lib/switches.js');
+const { PERMISSION_MODEL } = await import('../lib/switch-groups.js');
 const switchesFile = path.join(process.env.XANDER_HOME, 'switches.json');
 const browserPeer = { principal: { kind: 'owner' }, signal: new AbortController().signal };
 const apiPeer = { ...browserPeer };
@@ -71,7 +72,9 @@ test('settings activation/read are side-effect free and expose no secrets or age
   assert.equal(state.headers.get('access-control-allow-origin'), null);
   assert.equal(state.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(state.data.switches.items.length, listSwitches().items.length);
-  assert.ok(state.data.switches.items.every(row => !row.on));
+  assert.deepEqual(state.data.switches.items.map(row => row.id), ['ads.manage', 'listing.manage', 'fba.inbound', 'ziniao.control']);
+  assert.equal(state.data.switches.items.flatMap(row => row.operations).length, 31);
+  assert.ok(state.data.switches.items.every(row => row.on === false && row.partial === false));
   assert.match(state.data.revision, /^[a-f0-9]{64}$/);
   assert.ok(state.data.csrfToken.length >= 32);
   assert.deepEqual(Object.keys(state.data).sort(), ['csrfToken', 'revision', 'switches', 'version']);
@@ -95,14 +98,15 @@ test('authentication, request trust, browser identity and allowed methods gate e
 test('CSRF, schema, planned capabilities and body size fail closed without writes', async () => {
   const { data: state } = await real.request('state');
   const id = state.switches.items.find(row => row.implemented).id;
-  const valid = { id, on: true, expectedRevision: state.revision };
+  const valid = { id, on: true, permissionModel: PERMISSION_MODEL, expectedRevision: state.revision };
   for (const csrf of [undefined, 'invalid', 'é'.repeat(state.csrfToken.length)]) {
     assert.equal((await real.request('switch', { method: 'POST', body: valid, csrf })).status, 403);
   }
   const csrf = state.csrfToken;
   const invalid = [
     {}, { ...valid, on: 'false' }, { ...valid, on: 1 }, { ...valid, id: '__proto__' },
-    { ...valid, id: 'not.a.real.switch' }, { ...valid, expectedRevision: '' },
+    { ...valid, id: 'not.a.real.switch' }, { ...valid, id: 'ads.sp.target.bid' },
+    { ...valid, id: 'listing.price' }, { ...valid, permissionModel: PERMISSION_MODEL, expectedRevision: '' },
     { ...valid, by: 'panel' }, { ...valid, approved: true }, [], null, '{bad json',
   ];
   const planned = state.switches.items.find(row => !row.implemented);
@@ -116,10 +120,31 @@ test('CSRF, schema, planned capabilities and body size fail closed without write
   assert.equal(fs.existsSync(switchesFile), false);
 });
 
+test('old or mismatched Client permission models cannot bulk-authorize even with fresh owner CSRF and revision', async () => {
+  const { data: before } = await real.request('state');
+  assert.equal(fs.existsSync(switchesFile), false);
+  assert.deepEqual(before.switches.items.map(item => item.id), ['ads.manage', 'listing.manage', 'fba.inbound', 'ziniao.control']);
+  const models = [undefined, null, '', 'operations-v1', 'masters-v0', 'masters-v2', 'masters-v1 ', true, 1, {}, [PERMISSION_MODEL]];
+  for (const id of before.switches.items.map(item => item.id)) {
+    for (const model of models) {
+      // Missing field reproduces the old 31-switch Client's exact POST shape.
+      const body = { id, on: true, expectedRevision: before.revision };
+      if (model !== undefined) body.permissionModel = model;
+      const response = await real.request('switch', { method: 'POST', csrf: before.csrfToken, body });
+      assert.equal(response.status, 400, `${id}/${JSON.stringify(model)}`);
+      assert.match(response.data.error, /permissionModel|重载/);
+      assert.equal(fs.existsSync(switchesFile), false, 'a protocol mismatch must not create permissions or an audit entry');
+    }
+  }
+  const { data: after } = await real.request('state');
+  assert.equal(after.revision, before.revision);
+  assert.deepEqual(after.switches, before.switches);
+});
+
 test('one isolated switch change reuses the original store and audit; stale requests never overwrite', async () => {
   const { data: before } = await real.request('state');
   const id = before.switches.items.find(row => row.implemented).id;
-  const body = { id, on: true, expectedRevision: before.revision };
+  const body = { id, on: true, permissionModel: PERMISSION_MODEL, expectedRevision: before.revision };
   const changed = await real.request('switch', { method: 'POST', body, csrf: before.csrfToken });
   assert.equal(changed.status, 200);
   assert.equal(listSwitches().items.find(row => row.id === id).on, true);
@@ -131,17 +156,52 @@ test('one isolated switch change reuses the original store and audit; stale requ
   const conflict = await real.request('switch', { method: 'POST', body: { ...body, on: false }, csrf: before.csrfToken });
   assert.equal(conflict.status, 409);
   assert.equal(conflict.data.state.revision, changed.data.revision);
-  const same = await real.request('switch', { method: 'POST', body: { ...body, expectedRevision: changed.data.revision }, csrf: before.csrfToken });
+  const same = await real.request('switch', { method: 'POST', body: { ...body, permissionModel: PERMISSION_MODEL, expectedRevision: changed.data.revision }, csrf: before.csrfToken });
   assert.equal(same.status, 200);
   assert.equal(JSON.parse(fs.readFileSync(switchesFile, 'utf8')).history.length, 1, 'no-op must not create an audit write');
 });
 
+test('same-count legacy bit swaps invalidate a pending master request before any write', async () => {
+  let writes = 0;
+  const fixtureData = { items: [{ id: 'ads.manage', implemented: true, on: null, partial: true,
+    enabledOperations: 1, totalOperations: 2, operations: [
+      { id: 'ads.sp.target.bid', on: true }, { id: 'ads.sp.campaign.budget', on: false },
+    ] }], limits: {} };
+  const isolated = await fixture({ read: () => structuredClone(fixtureData), write: () => { writes++; } });
+  const { data: before } = await isolated.request('state');
+  fixtureData.items[0].operations[0].on = false;
+  fixtureData.items[0].operations[1].on = true;
+  const response = await isolated.request('switch', { method: 'POST', csrf: before.csrfToken,
+    body: { id: 'ads.manage', on: true, permissionModel: PERMISSION_MODEL, expectedRevision: before.revision } });
+  assert.equal(response.status, 409);
+  assert.equal(writes, 0);
+  assert.notEqual(response.data.state.revision, before.revision);
+  assert.equal(response.data.state.switches.items[0].on, before.switches.items[0].on);
+  assert.equal(response.data.state.switches.items[0].enabledOperations, before.switches.items[0].enabledOperations);
+  assert.deepEqual(response.data.state.switches.items[0].operations.map(row => row.on), [false, true]);
+});
+
+test('explicitly disabling a partial master is a real write, never a coerced-false no-op', async () => {
+  const calls = [];
+  const fixtureData = { items: [{ id: 'ads.manage', implemented: true, on: null, partial: true }], limits: {} };
+  const isolated = await fixture({ read: () => structuredClone(fixtureData), write: (id, on, by) => {
+    calls.push({ id, on, by }); Object.assign(fixtureData.items[0], { on, partial: false });
+  } });
+  const { data: before } = await isolated.request('state');
+  const response = await isolated.request('switch', { method: 'POST', csrf: before.csrfToken,
+    body: { id: 'ads.manage', on: false, permissionModel: PERMISSION_MODEL, expectedRevision: before.revision } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [{ id: 'ads.manage', on: false, by: 'dsh-settings' }]);
+  assert.equal(response.data.switches.items[0].on, false);
+  assert.equal(response.data.switches.items[0].partial, false);
+});
+
 test('write and read failures are visible and never retried', async () => {
   let writes = 0;
-  const fixtureData = { items: [{ id: 'fixture', implemented: true, on: false }], limits: {} };
+  const fixtureData = { items: [{ id: 'ads.manage', implemented: true, on: false }], limits: {} };
   const fixtureA = await fixture({ read: () => structuredClone(fixtureData), write: () => { writes++; throw new Error('synthetic disk failure'); } });
   const { data: state } = await fixtureA.request('state');
-  const response = await fixtureA.request('switch', { method: 'POST', csrf: state.csrfToken, body: { id: 'fixture', on: true, expectedRevision: state.revision } });
+  const response = await fixtureA.request('switch', { method: 'POST', csrf: state.csrfToken, body: { id: 'ads.manage', on: true, permissionModel: PERMISSION_MODEL, expectedRevision: state.revision } });
   assert.equal(response.status, 500);
   assert.match(response.data.error, /synthetic disk failure/);
   assert.equal(writes, 1);
@@ -192,7 +252,7 @@ test('unload or lost browser authority while reading a request prevents a late w
     const controller = new AbortController();
     const peer = { principal: { kind: 'owner' }, signal: controller.signal };
     const bridge = createSettingsBridge({ browserPeer: peer, admit: () => ({ peer }) }, {
-      read: () => ({ items: [{ id: 'fixture', implemented: true, on: false }], limits: {} }),
+      read: () => ({ items: [{ id: 'ads.manage', implemented: true, on: false }], limits: {} }),
       write: () => { writes++; },
     });
     const response = () => ({ setHeader() {}, writeHead(status) { this.status = status; }, end(body) { this.body = JSON.parse(body); } });
@@ -204,7 +264,7 @@ test('unload or lost browser authority while reading a request prevents a late w
     const res = response();
     const pending = bridge.routes[1].handler(req, res);
     if (stop === 'dispose') await bridge.dispose(); else controller.abort();
-    req.end(JSON.stringify({ id: 'fixture', on: true, expectedRevision: initial.body.revision }));
+    req.end(JSON.stringify({ id: 'ads.manage', on: true, permissionModel: PERMISSION_MODEL, expectedRevision: initial.body.revision }));
     await pending;
     assert.equal(res.status, 403);
     assert.equal(writes, 0);
@@ -223,7 +283,7 @@ test('Client manifest ships native settings resources without changing business 
   const client = fs.readFileSync(new URL('dsh/client.js', root), 'utf8');
   assert.match(client, /name: 'settings.section', id: 'xander'/);
   assert.match(client, /name: 'settings.section.icon', id: 'xander'/);
-  assert.match(client, /role: 'switch'/);
+  assert.match(client, /role: 'checkbox'/);
   assert.match(client, /prefers-reduced-motion/);
   assert.match(client, /position: sticky/);
   assert.match(client, /window\.open\(address, '_blank', 'noopener,noreferrer'\)/, 'Desktop must receive the validated HTTP URL, not only about:blank');

@@ -139,7 +139,7 @@ test('FBA creation requires exact approval, panel approval and its switch before
   await assert.rejects(execute(prepared, { hash: 'synthetic-wrong-hash' }), /哈希不匹配/);
   await assert.rejects(execute(prepared), /面板审批/);
   panelDecision(prepared.proposalId, 'approve');
-  await assert.rejects(execute(prepared), /开关还关着/);
+  await assert.rejects(execute(prepared), /总开关仍有未授权操作.*fba\.inbound/);
   assert.equal(f.writes().length, 0);
   setSwitch(f.op.id, true, 'synthetic-test');
 

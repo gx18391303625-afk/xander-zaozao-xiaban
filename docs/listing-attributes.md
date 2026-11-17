@@ -1,6 +1,6 @@
 # Listing 文案属性：亮点、预校验与回读
 
-`listing.attribute` 一次只修改指定 SKU 的一个文案属性。Item Highlights（亮点）使用 Amazon 属性 `title_differentiation`，不写入标题或五点。该能力沿用现有 `listing.attribute` 开关和审批方式；升级不会打开开关或关闭演练。
+`listing.attribute` 一次只修改指定 SKU 的一个文案属性。Item Highlights（亮点）使用 Amazon 属性 `title_differentiation`，不写入标题或五点。在 **v2.11.0 四总权限**中，本操作归入「链接」总权限（`listing.manage`），`listing.attribute` 仍是精确提案操作 ID，不再是独立用户开关。原审批方式不变，读取或升级不会自动扩大已有授权或关闭演练；见[四总权限说明](<four-master-switches.md>)。
 
 | 文案字段 | Amazon 属性 | 输入 |
 |---|---|---|
